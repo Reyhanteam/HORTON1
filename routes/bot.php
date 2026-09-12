@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use App\Telegram\Controllers\RegistrationController;
 use App\Telegram\Conversations\RegistrationConversation;
-use ReyhanTeam\TelegramBotRouter\Facades\BOT;
 use ReyhanTeam\TelegramBotRouter\Facades\Route;
 
 /*
@@ -17,7 +16,7 @@ use ReyhanTeam\TelegramBotRouter\Facades\Route;
 |
 */
 
-BOT::conversation(RegistrationConversation::name())
+Route::conversation(RegistrationConversation::name())
     ->step([RegistrationController::class, 'acceptance'])
     ->step([RegistrationController::class, 'phone'])
     ->ttl((int) config('telegram-bot-router.conversation.ttl', 3600))
