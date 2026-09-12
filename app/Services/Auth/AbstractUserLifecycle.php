@@ -36,31 +36,34 @@ abstract class AbstractUserLifecycle implements UserLifecycle
 
     final public function setStatus(User $user, UserStatus $status): User
     {
-        if ($user->status === $status->value) {
+        $currentStatus = $user->status instanceof UserStatus
+            ? $user->status
+            : UserStatus::tryFrom((string) $user->status);
+
+        if ($currentStatus === $status) {
             return $user;
         }
 
-        if (! $this->transitionAllowed((string) $user->status, $status)) {
+        if (! $this->transitionAllowed($currentStatus, $status)) {
             throw ValidationException::withMessages([
                 'status' => "User status transition to {$status->value} is not allowed.",
             ]);
         }
 
-        $user->forceFill(['status' => $status->value])->save();
+        $user->forceFill(['status' => $status])->save();
 
         return $user->refresh();
     }
 
     abstract protected function createUser(array $attributes): User;
 
-    protected function transitionAllowed(string $from, UserStatus $to): bool
+    protected function transitionAllowed(?UserStatus $from, UserStatus $to): bool
     {
         return match ($from) {
-            '', UserStatus::Pending->value => in_array($to, [UserStatus::Active, UserStatus::Blocked, UserStatus::Inactive], true),
-            UserStatus::Active->value => in_array($to, [UserStatus::Inactive, UserStatus::Blocked], true),
-            UserStatus::Inactive->value => in_array($to, [UserStatus::Active, UserStatus::Blocked], true),
-            UserStatus::Blocked->value => false,
-            default => false,
+            null, UserStatus::Pending => in_array($to, [UserStatus::Active, UserStatus::Blocked, UserStatus::Inactive], true),
+            UserStatus::Active => in_array($to, [UserStatus::Inactive, UserStatus::Blocked], true),
+            UserStatus::Inactive => in_array($to, [UserStatus::Active, UserStatus::Blocked], true),
+            UserStatus::Blocked => false,
         };
     }
 }
