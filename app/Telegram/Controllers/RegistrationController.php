@@ -6,11 +6,12 @@ namespace App\Telegram\Controllers;
 
 use App\Services\Registration\RegistrationService;
 use App\Telegram\Conversations\RegistrationConversation;
+use Illuminate\Validation\ValidationException;
+use InvalidArgumentException;
 use ReyhanTeam\TelegramBotRouter\Conversation\ConversationManager;
+use ReyhanTeam\TelegramBotRouter\Facades\BOT;
 use ReyhanTeam\TelegramBotRouter\Keyboard\Keyboard;
 use ReyhanTeam\TelegramBotRouter\TelegramUpdate;
-use ReyhanTeam\TelegramBotRouter\Facades\BOT;
-use InvalidArgumentException;
 
 final class RegistrationController
 {
@@ -53,7 +54,6 @@ final class RegistrationController
         $value = $input->required()->value('');
 
         if ($value === RegistrationService::DECLINE) {
-            $this->conversations->cancel($update);
             $this->send($update, $this->registration->message('registration.cancelled'));
             return ['done' => true, 'data' => ['declined' => true]];
         }
@@ -66,7 +66,12 @@ final class RegistrationController
         $result = $this->registration->accept($user);
 
         if ($result['done'] === true) {
-            $this->send($update, $this->registration->message('registration.success'), Keyboard::reply()->remove()->toArray());
+            $this->send(
+                $update,
+                $this->registration->message('registration.success'),
+                Keyboard::reply()->remove()->toArray(),
+            );
+
             return ['done' => true, 'data' => ['accepted' => true, 'phone_verified' => false]];
         }
 
@@ -92,7 +97,7 @@ final class RegistrationController
 
         try {
             $user = $this->registration->verifyPhone($user, $update);
-        } catch (\Illuminate\Validation\ValidationException $exception) {
+        } catch (ValidationException $exception) {
             $message = collect($exception->errors())->flatten()->first()
                 ?? $this->registration->message('registration.phone_invalid');
             $this->send($update, (string) $message);
