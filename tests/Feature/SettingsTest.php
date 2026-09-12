@@ -1,60 +1,77 @@
 <?php
 
+namespace Tests\Feature;
+
 use App\Contracts\FeatureManager;
 use App\Contracts\SettingsStore;
 use App\Models\BotSetting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
 
-uses(RefreshDatabase::class);
+class SettingsTest extends TestCase
+{
+    use RefreshDatabase;
 
-test('settings store persists and returns typed values', function () {
-    $settings = app(SettingsStore::class);
+    public function test_settings_store_persists_and_returns_typed_values(): void
+    {
+        $settings = app(SettingsStore::class);
 
-    $settings->set('shop.enabled', true);
-    $settings->set('shop.max_items', 12);
-    $settings->set('shop.tax_rate', 7.5);
-    $settings->set('shop.options', ['currency' => 'IRR', 'show_trial' => true]);
+        $settings->set('shop.enabled', true);
+        $settings->set('shop.max_items', 12);
+        $settings->set('shop.tax_rate', 7.5);
+        $settings->set('shop.options', ['currency' => 'IRR', 'show_trial' => true]);
 
-    expect($settings->get('shop.enabled'))->toBeTrue()
-        ->and($settings->get('shop.max_items'))->toBe(12)
-        ->and($settings->get('shop.tax_rate'))->toBe(7.5)
-        ->and($settings->get('shop.options'))->toBe(['currency' => 'IRR', 'show_trial' => true]);
+        $this->assertTrue($settings->get('shop.enabled'));
+        $this->assertSame(12, $settings->get('shop.max_items'));
+        $this->assertSame(7.5, $settings->get('shop.tax_rate'));
+        $this->assertSame(
+            ['currency' => 'IRR', 'show_trial' => true],
+            $settings->get('shop.options')
+        );
 
-    expect(BotSetting::query()->where('key', 'shop.max_items')->value('type'))->toBe('integer');
-});
+        $this->assertSame(
+            'integer',
+            BotSetting::query()->where('key', 'shop.max_items')->value('type')
+        );
+    }
 
-test('settings return defaults and support existence and deletion', function () {
-    $settings = app(SettingsStore::class);
+    public function test_settings_return_defaults_and_support_existence_and_deletion(): void
+    {
+        $settings = app(SettingsStore::class);
 
-    expect($settings->get('missing.key', 'fallback'))->toBe('fallback')
-        ->and($settings->has('missing.key'))->toBeFalse();
+        $this->assertSame('fallback', $settings->get('missing.key', 'fallback'));
+        $this->assertFalse($settings->has('missing.key'));
 
-    $settings->set('temporary.key', 'value');
-    expect($settings->has('temporary.key'))->toBeTrue();
+        $settings->set('temporary.key', 'value');
+        $this->assertTrue($settings->has('temporary.key'));
 
-    $settings->forget('temporary.key');
-    expect($settings->has('temporary.key'))->toBeFalse()
-        ->and($settings->get('temporary.key', 'fallback'))->toBe('fallback');
-});
+        $settings->forget('temporary.key');
 
-test('settings cache is invalidated after updates', function () {
-    $settings = app(SettingsStore::class);
+        $this->assertFalse($settings->has('temporary.key'));
+        $this->assertSame('fallback', $settings->get('temporary.key', 'fallback'));
+    }
 
-    $settings->set('cache.test', 'first');
-    expect($settings->get('cache.test'))->toBe('first');
+    public function test_settings_cache_is_invalidated_after_updates(): void
+    {
+        $settings = app(SettingsStore::class);
 
-    $settings->set('cache.test', 'second');
-    expect($settings->get('cache.test'))->toBe('second');
-});
+        $settings->set('cache.test', 'first');
+        $this->assertSame('first', $settings->get('cache.test'));
 
-test('feature manager persists feature flags through settings abstraction', function () {
-    $features = app(FeatureManager::class);
+        $settings->set('cache.test', 'second');
+        $this->assertSame('second', $settings->get('cache.test'));
+    }
 
-    expect($features->enabled('shop', false))->toBeFalse();
+    public function test_feature_manager_persists_feature_flags_through_settings_abstraction(): void
+    {
+        $features = app(FeatureManager::class);
 
-    $features->enable('shop');
-    expect($features->enabled('shop'))->toBeTrue();
+        $this->assertFalse($features->enabled('shop', false));
 
-    $features->disable('shop');
-    expect($features->enabled('shop'))->toBeFalse();
-});
+        $features->enable('shop');
+        $this->assertTrue($features->enabled('shop'));
+
+        $features->disable('shop');
+        $this->assertFalse($features->enabled('shop'));
+    }
+}
