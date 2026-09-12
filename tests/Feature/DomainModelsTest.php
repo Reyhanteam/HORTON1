@@ -60,6 +60,19 @@ class DomainModelsTest extends TestCase
         $this->assertSame('day', $plan->trial_duration_unit);
     }
 
+    public function test_discount_and_gift_factories_build_marketing_codes(): void
+    {
+        $discount = DiscountCode::factory()->fixed(250_000)->create();
+        $gift = GiftCode::factory()->discount(150_000)->create();
+
+        $this->assertSame(DiscountType::FIXED, $discount->type);
+        $this->assertSame(250_000, $discount->value);
+        $this->assertTrue($discount->is_active);
+        $this->assertSame(GiftCodeType::DISCOUNT, $gift->type);
+        $this->assertSame(150_000, $gift->value);
+        $this->assertTrue($gift->is_active);
+    }
+
     public function test_domain_status_and_type_casts_use_backed_enums(): void
     {
         $order = new Order(['status' => 'paid']);
