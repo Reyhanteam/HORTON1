@@ -91,6 +91,19 @@ class PaymentGatewayTest extends TestCase
         $this->app->make(PaymentOrchestrator::class)->handleCallback($payment, new PaymentCallbackData('bad-amount', 'success', 'TX', 'REF', 1));
     }
 
+    public function test_duplicate_transaction_identifier_is_rejected(): void
+    {
+        $order1 = Order::factory()->create(['subtotal' => 100000, 'total_amount' => 100000]);
+        $order2 = Order::factory()->create(['subtotal' => 100000, 'total_amount' => 100000]);
+        $orchestrator = $this->app->make(PaymentOrchestrator::class);
+        $payment1 = $orchestrator->initiate($order1, PaymentMethod::ONLINE, 'fake', 'duplicate-a');
+        $orchestrator->handleCallback($payment1, new PaymentCallbackData('callback-a', 'success', 'TX-DUP', 'REF-A', 100000));
+        $payment2 = $orchestrator->initiate($order2, PaymentMethod::ONLINE, 'fake', 'duplicate-b');
+        $this->expectException(PaymentException::class);
+        $this->expectExceptionMessage('Transaction ID is already attached to another payment.');
+        $orchestrator->handleCallback($payment2, new PaymentCallbackData('callback-b', 'success', 'TX-DUP', 'REF-B', 100000));
+    }
+
     public function test_manual_gateway_is_pending_until_verified(): void
     {
         $order = Order::factory()->create(['subtotal' => 400000, 'total_amount' => 400000]);
@@ -122,12 +135,15 @@ class PaymentGatewayTest extends TestCase
         $gateway->initiate($payment);
     }
 
-    public function test_fake_gateway_can_simulate_failure(): void
+    public function test_fake_gateway_can_simulate_failure_and_timeout(): void
     {
         $gateway = $this->app->make(FakePaymentGateway::class);
-        $payment = Payment::factory()->create(['amount' => 1000, 'currency' => 'IRR', 'metadata' => ['simulate_failure' => true]]);
-        $result = $gateway->initiate($payment);
+        $failedPayment = Payment::factory()->create(['amount' => 1000, 'currency' => 'IRR', 'metadata' => ['simulate_failure' => true]]);
+        $result = $gateway->initiate($failedPayment);
         $this->assertFalse($result->successful);
         $this->assertSame('failed', $result->status);
+        $timeoutPayment = Payment::factory()->create(['amount' => 1000, 'currency' => 'IRR', 'metadata' => ['simulate_timeout' => true]]);
+        $this->expectException(PaymentException::class);
+        $gateway->initiate($timeoutPayment);
     }
 }

@@ -4,6 +4,7 @@ namespace App\Services\Payment;
 
 use App\DTOs\Payment\PaymentCallbackData;
 use App\DTOs\Payment\PaymentResult;
+use App\Exceptions\PaymentException;
 use App\Models\Payment;
 use Illuminate\Support\Str;
 
@@ -13,6 +14,7 @@ final class FakePaymentGateway extends AbstractPaymentGateway
 
     protected function performInitiate(Payment $payment): PaymentResult
     {
+        if (($payment->metadata['simulate_timeout'] ?? false) === true) throw new PaymentException('Simulated gateway timeout.', 'payment.gateway_timeout');
         if (($payment->metadata['simulate_failure'] ?? false) === true) return PaymentResult::failed('gateway.simulated_failure', 'Simulated gateway failure.');
         $reference = 'FAKE-' . Str::upper(Str::random(16));
         return PaymentResult::pending(['referenceId' => $reference, 'paymentUrl' => 'https://example.test/pay/'.$payment->uuid, 'metadata' => ['driver' => 'fake']]);

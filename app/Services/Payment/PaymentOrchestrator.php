@@ -13,63 +13,40 @@ use App\Enums\PaymentStatus;
 use App\Exceptions\PaymentException;
 use App\Models\Order;
 use App\Models\Payment;
-use App\Models\PaymentAttempt;
 use Illuminate\Database\DatabaseManager;
 use Illuminate\Support\Str;
 
 final class PaymentOrchestrator
 {
-    public function __construct(
-        private readonly PaymentGatewayManager $gateways,
-        private readonly WalletService $wallets,
-        private readonly MarkOrderPaidAction $markOrderPaid,
-        private readonly DatabaseManager $db,
-    ) {}
+    public function __construct(private readonly PaymentGatewayManager $gateways, private readonly WalletService $wallets, private readonly MarkOrderPaidAction $markOrderPaid, private readonly DatabaseManager $db) {}
 
     public function initiate(Order $order, PaymentMethod $method, ?string $gateway = null, ?string $idempotencyKey = null): Payment
     {
-        if ((int) $order->total_amount <= 0) {
-            throw new PaymentException('Order amount must be greater than zero.', 'payment.invalid_order_amount');
-        }
+        if ((int) $order->total_amount <= 0) throw new PaymentException('Order amount must be greater than zero.', 'payment.invalid_order_amount');
         $key = $idempotencyKey ?? 'order-'.$order->id.'-'.$method->value;
-
         return $this->db->transaction(function () use ($order, $method, $gateway, $key): Payment {
             $existing = Payment::query()->where('idempotency_key', $key)->lockForUpdate()->first();
-            if ($existing) {
-                return $existing;
-            }
+            if ($existing) return $existing;
             $payment = Payment::query()->create([
-                'uuid' => (string) Str::uuid(),
-                'order_id' => $order->id,
-                'user_id' => $order->user_id,
-                'method' => $method->value,
-                'gateway' => $gateway ?? ($method === PaymentMethod::MANUAL ? 'manual' : ($method === PaymentMethod::ONLINE ? 'fake' : null)),
-                'amount' => $order->total_amount,
-                'currency' => $order->currency,
-                'status' => PaymentStatus::PENDING,
-                'idempotency_key' => $key,
-                'metadata' => [],
+                'uuid' => (string) Str::uuid(), 'order_id' => $order->id, 'user_id' => $order->user_id,
+                'method' => $method->value, 'gateway' => $gateway ?? ($method === PaymentMethod::MANUAL ? 'manual' : ($method === PaymentMethod::ONLINE ? 'fake' : null)),
+                'amount' => $order->total_amount, 'currency' => $order->currency, 'status' => PaymentStatus::PENDING,
+                'idempotency_key' => $key, 'metadata' => [],
             ]);
-            return $this->processInitiation($payment);
+            return $method === PaymentMethod::WALLET ? $this->payWalletPayment($payment, $order) : $this->processInitiation($payment);
         });
     }
 
     public function verify(Payment $payment, ?PaymentCallbackData $callback = null): Payment
     {
-        $gateway = $this->gatewayFor($payment);
-        $result = $gateway->verify($payment, $callback);
-        return $this->applyResult($payment, $result);
+        return $this->applyResult($payment, $this->gatewayFor($payment)->verify($payment, $callback));
     }
 
     public function handleCallback(Payment $payment, PaymentCallbackData $callback): Payment
     {
-        $callbackModel = $payment->callbacks()->firstOrCreate(
-            ['callback_id' => $callback->callbackId],
-            ['gateway' => $payment->gateway, 'status' => 'received', 'payload' => $callback->payload]
-        );
-        if ($callbackModel->processed_at) {
-            return $payment->refresh();
-        }
+        $callbackModel = $payment->callbacks()->firstOrCreate(['callback_id' => $callback->callbackId], ['gateway' => $payment->gateway, 'status' => 'received', 'payload' => $callback->payload]);
+        if ($callbackModel->processed_at) return $payment->refresh();
+        $this->assertCallbackIdentifiersAreUnique($payment, $callback);
         $result = $this->gatewayFor($payment)->callback($payment, $callback);
         $updated = $this->applyResult($payment, $result);
         $callbackModel->forceFill(['status' => $result->status, 'processed_at' => now()])->save();
@@ -78,6 +55,7 @@ final class PaymentOrchestrator
 
     public function payWithWallet(Order $order, ?string $idempotencyKey = null): Payment
     {
+        if ((int) $order->total_amount <= 0) throw new PaymentException('Order amount must be greater than zero.', 'payment.invalid_order_amount');
         $key = $idempotencyKey ?? 'wallet-order-'.$order->id;
         return $this->db->transaction(function () use ($order, $key): Payment {
             $existing = Payment::query()->where('idempotency_key', $key)->lockForUpdate()->first();
@@ -87,17 +65,19 @@ final class PaymentOrchestrator
                 'method' => PaymentMethod::WALLET->value, 'gateway' => null, 'amount' => $order->total_amount,
                 'currency' => $order->currency, 'status' => PaymentStatus::PENDING, 'idempotency_key' => $key,
             ]);
-            try {
-                $this->wallets->debit($order->user, new WalletMutationData(
-                    amount: $order->total_amount, type: 'order_payment', description: 'Wallet payment for order #'.$order->id,
-                    idempotencyKey: 'payment-'.$payment->id, referenceType: Payment::class, referenceId: $payment->id,
-                ), $order->currency);
-            } catch (\Throwable $e) {
-                $payment->update(['status' => PaymentStatus::FAILED, 'metadata' => ['error' => $e->getMessage()]]);
-                throw $e;
-            }
-            return $this->applyResult($payment, PaymentResult::success(['transactionId' => 'WALLET-'.$payment->id, 'referenceId' => 'WALLET-'.$order->id]));
+            return $this->payWalletPayment($payment, $order);
         });
+    }
+
+    private function payWalletPayment(Payment $payment, Order $order): Payment
+    {
+        try {
+            $this->wallets->debit($order->user, new WalletMutationData(amount: $order->total_amount, type: 'order_payment', description: 'Wallet payment for order #'.$order->id, idempotencyKey: 'payment-'.$payment->id, referenceType: Payment::class, referenceId: $payment->id), $order->currency);
+        } catch (\Throwable $e) {
+            $payment->update(['status' => PaymentStatus::FAILED, 'metadata' => ['error_code' => 'payment.wallet_debit_failed']]);
+            throw $e;
+        }
+        return $this->applyResult($payment, PaymentResult::success(['transactionId' => 'WALLET-'.$payment->id, 'referenceId' => 'WALLET-'.$order->id]));
     }
 
     private function processInitiation(Payment $payment): Payment
@@ -117,22 +97,17 @@ final class PaymentOrchestrator
     private function applyResult(Payment $payment, PaymentResult $result): Payment
     {
         $status = PaymentStatus::from($result->status);
-        $payment->forceFill([
-            'status' => $status,
-            'transaction_id' => $result->transactionId ?? $payment->transaction_id,
-            'reference_id' => $result->referenceId ?? $payment->reference_id,
-            'verified_at' => $result->successful ? ($result->verifiedAt ?? now()) : $payment->verified_at,
-            'paid_at' => $result->successful ? ($payment->paid_at ?? now()) : $payment->paid_at,
-            'metadata' => array_merge($payment->metadata ?? [], $result->metadata),
-        ])->save();
-        if ($result->successful) {
-            $this->markOrderPaid->execute($payment->order()->lockForUpdate()->firstOrFail());
-        }
+        $payment->forceFill(['status' => $status, 'transaction_id' => $result->transactionId ?? $payment->transaction_id, 'reference_id' => $result->referenceId ?? $payment->reference_id, 'verified_at' => $result->successful ? ($result->verifiedAt ?? now()) : $payment->verified_at, 'paid_at' => $result->successful ? ($payment->paid_at ?? now()) : $payment->paid_at, 'metadata' => array_merge($payment->metadata ?? [], $result->metadata)])->save();
+        if ($result->successful) $this->markOrderPaid->execute($payment->order()->lockForUpdate()->firstOrFail());
         return $payment->refresh();
     }
 
-    private function gatewayFor(Payment $payment): PaymentGatewayContract
+    private function assertCallbackIdentifiersAreUnique(Payment $payment, PaymentCallbackData $callback): void
     {
-        return $this->gateways->driver($payment->gateway);
+        $key = $payment->getKeyName();
+        if ($callback->transactionId && Payment::query()->where('transaction_id', $callback->transactionId)->where($key, '!=', $payment->getKey())->exists()) throw new PaymentException('Transaction ID is already attached to another payment.', 'payment.duplicate_transaction');
+        if ($callback->referenceId && Payment::query()->where('reference_id', $callback->referenceId)->where($key, '!=', $payment->getKey())->exists()) throw new PaymentException('Reference ID is already attached to another payment.', 'payment.duplicate_reference');
     }
+
+    private function gatewayFor(Payment $payment): PaymentGatewayContract { return $this->gateways->driver($payment->gateway); }
 }
