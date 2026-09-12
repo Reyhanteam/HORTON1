@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -16,14 +17,12 @@ class Payment extends Model
 
     protected static function booted(): void
     {
-        static::creating(function (Payment $payment): void {
-            $payment->uuid ??= (string) Str::uuid();
-        });
+        static::creating(function (Payment $payment): void { $payment->uuid ??= (string) Str::uuid(); });
     }
 
     protected function casts(): array
     {
-        return ['status' => PaymentStatus::class, 'amount' => 'integer', 'paid_at' => 'datetime', 'verified_at' => 'datetime', 'metadata' => 'array'];
+        return ['method' => PaymentMethod::class, 'status' => PaymentStatus::class, 'amount' => 'integer', 'paid_at' => 'datetime', 'verified_at' => 'datetime', 'metadata' => 'array'];
     }
 
     public function order(): BelongsTo { return $this->belongsTo(Order::class); }
