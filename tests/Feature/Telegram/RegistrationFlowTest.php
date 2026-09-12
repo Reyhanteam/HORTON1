@@ -12,7 +12,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use ReyhanTeam\TelegramBotRouter\Facades\Telegram;
-use ReyhanTeam\TelegramBotRouter\TelegramUpdate;
 use Tests\TestCase;
 
 final class RegistrationFlowTest extends TestCase
@@ -92,9 +91,7 @@ final class RegistrationFlowTest extends TestCase
     public function test_invalid_contact_is_rejected_and_conversation_remains_active(): void
     {
         $this->startRegistration();
-        $this->postJson('/telegram/webhook', self::callbackUpdate(1001, 'registration:accept'));
-
-        $this->postJson('/telegram/webhook', self::contactUpdate(1001, 1001, '+123'));
+        $this->postJson('/telegram/webhook', self::callbackUpdate(1001, 1001, '+123'));
 
         $user = User::query()->sole();
         self::assertSame(UserStatus::Pending, $user->status);
@@ -114,7 +111,7 @@ final class RegistrationFlowTest extends TestCase
         $this->postJson('/telegram/webhook', self::callbackUpdate(1001, 'registration:accept'));
         $this->postJson('/telegram/webhook', self::contactUpdate(1001, 1001, '+491234567890'));
 
-        $newUser = User::query()->whereKeyNot($existing->id)->sole();
+        $newUser = User::query()->where('id', '!=', $existing->id)->sole();
         self::assertSame(UserStatus::Pending, $newUser->status);
         self::assertNull($newUser->phone);
     }
