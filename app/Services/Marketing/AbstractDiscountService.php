@@ -29,6 +29,8 @@ abstract class AbstractDiscountService implements DiscountService
     final public function calculate(DiscountCode $discount, int $subtotal): int
     {
         if ($subtotal <= 0) return 0;
+        if ($discount->value < 0) throw new DomainRuleViolation('Discount value cannot be negative.', 'discount.value');
+        if ($discount->type === DiscountType::PERCENTAGE && $discount->value > 100) throw new DomainRuleViolation('Percentage discount cannot exceed 100.', 'discount.value');
         $amount = match ($discount->type) {
             DiscountType::PERCENTAGE => intdiv($subtotal * (int) $discount->value, 100),
             DiscountType::FIXED => min($subtotal, (int) $discount->value),
@@ -39,10 +41,14 @@ abstract class AbstractDiscountService implements DiscountService
     final public function consume(DiscountCode $discount, User $user, int $orderId, int $amount): void
     {
         if ($amount <= 0) return;
-        DB::transaction(function () use ($discount, $user, $orderId, $amount) {
-            if (DiscountUsage::query()->where('discount_code_id',$discount->id)->where('order_id',$orderId)->exists()) return;
-            DiscountUsage::query()->create(['discount_code_id'=>$discount->id,'user_id'=>$user->id,'order_id'=>$orderId,'amount'=>$amount]);
-            $discount->increment('used_count');
+        DB::transaction(function () use ($discount, $user, $orderId, $amount): void {
+            $locked = DiscountCode::query()->whereKey($discount->id)->lockForUpdate()->firstOrFail();
+            if (!$locked->is_active) throw new DomainRuleViolation('Discount code is inactive.', 'discount.invalid');
+            if ($locked->usage_limit !== null && $locked->used_count >= $locked->usage_limit) throw new DomainRuleViolation('Discount usage limit reached.', 'discount.usage_limit');
+            if (DiscountUsage::query()->where('discount_code_id',$locked->id)->where('order_id',$orderId)->exists()) return;
+            if ($locked->usage_limit_per_user !== null && DiscountUsage::query()->where('discount_code_id',$locked->id)->where('user_id',$user->id)->count() >= $locked->usage_limit_per_user) throw new DomainRuleViolation('Your usage limit for this discount is reached.', 'discount.user_limit');
+            DiscountUsage::query()->create(['discount_code_id'=>$locked->id,'user_id'=>$user->id,'order_id'=>$orderId,'amount'=>$amount]);
+            $locked->increment('used_count');
         });
     }
 }
