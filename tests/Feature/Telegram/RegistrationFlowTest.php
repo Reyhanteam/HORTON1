@@ -42,7 +42,7 @@ final class RegistrationFlowTest extends TestCase
             'user_id' => $user->id,
             'telegram_user_id' => 1001,
         ]);
-        $fake->assertMessageSent('Rules for {name}');
+        $fake->assertMessageSent('Rules for Test');
     }
 
     public function test_accepting_rules_requests_phone_when_feature_is_enabled(): void
@@ -91,7 +91,15 @@ final class RegistrationFlowTest extends TestCase
     public function test_invalid_contact_is_rejected_and_conversation_remains_active(): void
     {
         $this->startRegistration();
-        $this->postJson('/telegram/webhook', self::callbackUpdate(1001, 1001, '+123'));
+        $this->postJson(
+            '/telegram/webhook',
+            self::callbackUpdate(1001, 'registration:accept')
+        );
+
+        $this->postJson(
+            '/telegram/webhook',
+            self::contactUpdate(1001, 1001, '+123')
+        );
 
         $user = User::query()->sole();
         self::assertSame(UserStatus::Pending, $user->status);
@@ -119,7 +127,7 @@ final class RegistrationFlowTest extends TestCase
     public function test_phone_verification_feature_can_be_disabled_from_database(): void
     {
         BotSetting::query()->updateOrCreate(
-            ['key' => 'features.' . Feature::PhoneVerification->value],
+            ['key' => 'features.'.Feature::PhoneVerification->value],
             ['value' => 'false', 'type' => 'boolean', 'is_public' => false],
         );
 
@@ -174,13 +182,13 @@ final class RegistrationFlowTest extends TestCase
 
         foreach ($messages as $key => $value) {
             BotSetting::query()->updateOrCreate(
-                ['key' => 'messages.' . $key],
+                ['key' => 'messages.'.$key],
                 ['value' => json_encode($value, JSON_THROW_ON_ERROR), 'type' => 'string', 'is_public' => true],
             );
         }
 
         BotSetting::query()->updateOrCreate(
-            ['key' => 'features.' . Feature::PhoneVerification->value],
+            ['key' => 'features.'.Feature::PhoneVerification->value],
             ['value' => 'true', 'type' => 'boolean', 'is_public' => false],
         );
     }
@@ -204,7 +212,7 @@ final class RegistrationFlowTest extends TestCase
         return [
             'update_id' => random_int(10000, 99999),
             'callback_query' => [
-                'id' => 'callback-' . random_int(10000, 99999),
+                'id' => 'callback-'.random_int(10000, 99999),
                 'from' => ['id' => $telegramUserId, 'is_bot' => false, 'first_name' => 'Test'],
                 'message' => [
                     'message_id' => random_int(10000, 99999),

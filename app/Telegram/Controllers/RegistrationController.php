@@ -124,6 +124,6 @@ final class RegistrationController
             $payload['reply_markup'] = $replyMarkup;
         }
 
-        return BOT::sendMessage($payload);
+        return BOT::sendMessage($update->chatId(), $text, replyMarkup:$replyMarkup);
     }
 }
