@@ -76,6 +76,28 @@ final class RegistrationService
         return $user->refresh();
     }
 
+    public function userForUpdate(TelegramUpdate $update): User
+    {
+        $account = TelegramAccount::query()
+            ->with('user')
+            ->where('telegram_user_id', $this->telegramUserId($update))
+            ->first();
+
+        if ($account === null) {
+            throw ValidationException::withMessages([
+                'registration' => $this->message('registration.not_started'),
+            ]);
+        }
+
+        if ($account->user->status === UserStatus::Blocked) {
+            throw ValidationException::withMessages([
+                'registration' => $this->message('registration.blocked'),
+            ]);
+        }
+
+        return $account->user;
+    }
+
     public function accept(User $user): array
     {
         if ($user->status === UserStatus::Blocked) {
