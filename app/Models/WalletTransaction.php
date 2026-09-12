@@ -11,37 +11,21 @@ use LogicException;
 class WalletTransaction extends Model
 {
     use HasFactory;
-
     public $timestamps = false;
     protected $guarded = [];
 
     protected static function booted(): void
     {
         static::creating(function (WalletTransaction $transaction): void {
-            if (blank($transaction->previous_hash) || blank($transaction->ledger_hash)) {
-                throw new LogicException('Wallet ledger transactions must be created through WalletService.');
-            }
+            if (blank($transaction->ledger_hash)) throw new LogicException('Wallet ledger transactions must be created through WalletService.');
         });
-
-        static::updating(function (): never {
-            throw new LogicException('Wallet ledger transactions are immutable.');
-        });
-
-        static::deleting(function (): never {
-            throw new LogicException('Wallet ledger transactions cannot be deleted.');
-        });
+        static::updating(function (): never { throw new LogicException('Wallet ledger transactions are immutable.'); });
+        static::deleting(function (): never { throw new LogicException('Wallet ledger transactions cannot be deleted.'); });
     }
 
     protected function casts(): array
     {
-        return [
-            'direction' => TransactionDirection::class,
-            'amount' => 'integer',
-            'balance_before' => 'integer',
-            'balance_after' => 'integer',
-            'created_at' => 'datetime',
-            'metadata' => 'array',
-        ];
+        return ['direction' => TransactionDirection::class, 'amount' => 'integer', 'balance_before' => 'integer', 'balance_after' => 'integer', 'created_at' => 'datetime', 'metadata' => 'array'];
     }
 
     public function wallet(): BelongsTo { return $this->belongsTo(Wallet::class); }
@@ -65,7 +49,6 @@ class WalletTransaction extends Model
             'created_at' => $this->created_at?->format('Y-m-d H:i:s.u'),
             'previous_hash' => $previousHash,
         ];
-
         return hash('sha256', json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
     }
 }
