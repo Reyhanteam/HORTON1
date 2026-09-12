@@ -7,6 +7,7 @@ namespace App\Services\Registration;
 use App\Actions\Users\RegisterUserAction;
 use App\Contracts\FeatureManager;
 use App\Contracts\SettingsStore;
+use App\Contracts\UserLifecycle;
 use App\DTOs\CreateUserData;
 use App\Enums\Feature;
 use App\Enums\UserStatus;
@@ -25,6 +26,7 @@ final class RegistrationService
 
     public function __construct(
         private readonly RegisterUserAction $registerUser,
+        private readonly UserLifecycle $lifecycle,
         private readonly FeatureManager $features,
         private readonly SettingsStore $settings,
         private readonly DatabaseManager $db,
@@ -44,14 +46,15 @@ final class RegistrationService
             $this->syncTelegramAccount($account, $update);
 
             if ($user->status === UserStatus::Blocked) {
-                throw ValidationException::withMessages(['registration' => $this->message('registration.blocked')]);
+                throw ValidationException::withMessages([
+                    'registration' => $this->message('registration.blocked'),
+                ]);
             }
 
             return $user;
         }
 
         $from = $update->message?->from;
-
         $user = $this->registerUser->execute(new CreateUserData(
             name: $this->displayName($from),
             username: isset($from->username) ? (string) $from->username : null,
@@ -76,14 +79,13 @@ final class RegistrationService
     public function accept(User $user): array
     {
         if ($user->status === UserStatus::Blocked) {
-            throw ValidationException::withMessages(['registration' => $this->message('registration.blocked')]);
+            throw ValidationException::withMessages([
+                'registration' => $this->message('registration.blocked'),
+            ]);
         }
 
-        if (!$this->features->enabled(Feature::PhoneVerification->value, true)) {
-            return [
-                'done' => true,
-                'user' => app(\App\Contracts\UserLifecycle::class)->activate($user),
-            ];
+        if (!$this->phoneVerificationEnabled()) {
+            return ['done' => true, 'user' => $this->lifecycle->activate($user)];
         }
 
         return ['done' => false, 'user' => $user];
@@ -96,8 +98,8 @@ final class RegistrationService
 
     public function verifyPhone(User $user, TelegramUpdate $update): User
     {
-        if (!$this->features->enabled(Feature::PhoneVerification->value, true)) {
-            return app(\App\Contracts\UserLifecycle::class)->activate($user);
+        if (!$this->phoneVerificationEnabled()) {
+            return $this->lifecycle->activate($user);
         }
 
         $phone = $this->validatedContactPhone($update);
@@ -106,7 +108,7 @@ final class RegistrationService
             return $this->db->transaction(function () use ($user, $phone): User {
                 $existing = User::query()
                     ->where('phone', $phone)
-                    ->whereKeyNot($user->getKey())
+                    ->where($user->getKeyName(), '!=', $user->getKey())
                     ->lockForUpdate()
                     ->exists();
 
@@ -122,7 +124,7 @@ final class RegistrationService
                     'phone_verified_at' => now(),
                 ])->save();
 
-                return app(\App\Contracts\UserLifecycle::class)->activate($user->refresh());
+                return $this->lifecycle->activate($user->refresh());
             });
         } catch (QueryException $exception) {
             if ($this->isDuplicatePhoneException($exception)) {
@@ -142,7 +144,10 @@ final class RegistrationService
 
     public function render(string $key, array $replace = []): string
     {
-        return strtr($this->message($key), array_map(static fn ($value): string => (string) $value, $replace));
+        return strtr(
+            $this->message($key),
+            array_map(static fn ($value): string => (string) $value, $replace),
+        );
     }
 
     public function phoneVerificationEnabled(): bool
@@ -154,7 +159,9 @@ final class RegistrationService
     {
         $id = $update->userId();
         if ($id === null) {
-            throw ValidationException::withMessages(['telegram' => 'Telegram user is required.']);
+            throw ValidationException::withMessages([
+                'telegram' => $this->message('registration.telegram_user_required'),
+            ]);
         }
 
         return (int) $id;
@@ -202,6 +209,7 @@ final class RegistrationService
     private function syncTelegramAccount(TelegramAccount $account, TelegramUpdate $update): void
     {
         $from = $update->message?->from;
+
         $account->forceFill([
             'username' => isset($from->username) ? (string) $from->username : $account->username,
             'first_name' => isset($from->first_name) ? (string) $from->first_name : $account->first_name,
