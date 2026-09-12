@@ -1,0 +1,133 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Contracts\PaymentGatewayContract;
+use App\DTOs\Payment\PaymentCallbackData;
+use App\Enums\PaymentMethod;
+use App\Enums\PaymentStatus;
+use App\Exceptions\PaymentException;
+use App\Models\Order;
+use App\Models\Payment;
+use App\Services\Payment\FakePaymentGateway;
+use App\Services\Payment\PaymentGatewayManager;
+use App\Services\Payment\PaymentOrchestrator;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Tests\TestCase;
+
+class PaymentGatewayTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_contract_and_manager_are_bound(): void
+    {
+        $this->assertInstanceOf(PaymentGatewayContract::class, $this->app->make(PaymentGatewayContract::class));
+        $this->assertInstanceOf(FakePaymentGateway::class, $this->app->make(PaymentGatewayManager::class)->driver('fake'));
+    }
+
+    public function test_online_initiation_is_pending_and_creates_attempt(): void
+    {
+        $order = Order::factory()->create(['subtotal' => 250000, 'total_amount' => 250000]);
+        $payment = $this->app->make(PaymentOrchestrator::class)->initiate($order, PaymentMethod::ONLINE, 'fake', 'payment-key-1');
+        $this->assertSame(PaymentStatus::PENDING, $payment->status);
+        $this->assertNotNull($payment->reference_id);
+        $this->assertSame(1, $payment->attempts()->count());
+        $this->assertSame('pending', $payment->attempts()->first()->status);
+    }
+
+    public function test_initiation_is_idempotent(): void
+    {
+        $order = Order::factory()->create(['subtotal' => 100000, 'total_amount' => 100000]);
+        $orchestrator = $this->app->make(PaymentOrchestrator::class);
+        $first = $orchestrator->initiate($order, PaymentMethod::ONLINE, 'fake', 'same-key');
+        $second = $orchestrator->initiate($order, PaymentMethod::ONLINE, 'fake', 'same-key');
+        $this->assertTrue($first->is($second));
+        $this->assertSame(1, Payment::query()->where('idempotency_key', 'same-key')->count());
+        $this->assertSame(1, $second->attempts()->count());
+    }
+
+    public function test_success_callback_verifies_once_and_marks_order_paid(): void
+    {
+        $order = Order::factory()->create(['subtotal' => 300000, 'total_amount' => 300000]);
+        $orchestrator = $this->app->make(PaymentOrchestrator::class);
+        $payment = $orchestrator->initiate($order, PaymentMethod::ONLINE, 'fake', 'success-key');
+        $callback = new PaymentCallbackData('callback-1', 'success', 'TX-123', 'REF-123', 300000, ['ok' => true]);
+        $paid = $orchestrator->handleCallback($payment, $callback);
+        $this->assertSame(PaymentStatus::SUCCESS, $paid->status);
+        $this->assertSame('paid', $paid->order->refresh()->status->value);
+        $this->assertNotNull($paid->verified_at);
+        $this->assertNotNull($paid->paid_at);
+        $this->assertSame(1, $paid->callbacks()->count());
+        $again = $orchestrator->handleCallback($paid, $callback);
+        $this->assertSame(PaymentStatus::SUCCESS, $again->status);
+        $this->assertSame(1, DB::table('payment_callbacks')->where('callback_id', 'callback-1')->count());
+    }
+
+    public function test_failed_callback_does_not_mark_order_paid(): void
+    {
+        $order = Order::factory()->create(['subtotal' => 200000, 'total_amount' => 200000]);
+        $payment = $this->app->make(PaymentOrchestrator::class)->initiate($order, PaymentMethod::ONLINE, 'fake', 'failed-key');
+        $failed = $this->app->make(PaymentOrchestrator::class)->handleCallback($payment, new PaymentCallbackData('callback-failed', 'failed', null, null, 200000));
+        $this->assertSame(PaymentStatus::FAILED, $failed->status);
+        $this->assertSame('pending', $failed->order->refresh()->status->value);
+    }
+
+    public function test_pending_verification_keeps_payment_pending(): void
+    {
+        $order = Order::factory()->create(['subtotal' => 150000, 'total_amount' => 150000]);
+        $payment = $this->app->make(PaymentOrchestrator::class)->initiate($order, PaymentMethod::ONLINE, 'fake', 'pending-key');
+        $pending = $this->app->make(PaymentOrchestrator::class)->verify($payment);
+        $this->assertSame(PaymentStatus::PENDING, $pending->status);
+        $this->assertSame('pending', $pending->order->refresh()->status->value);
+    }
+
+    public function test_callback_amount_mismatch_is_rejected(): void
+    {
+        $order = Order::factory()->create(['subtotal' => 500000, 'total_amount' => 500000]);
+        $payment = $this->app->make(PaymentOrchestrator::class)->initiate($order, PaymentMethod::ONLINE, 'fake', 'amount-key');
+        $this->expectException(PaymentException::class);
+        $this->expectExceptionMessage('Callback amount does not match payment amount.');
+        $this->app->make(PaymentOrchestrator::class)->handleCallback($payment, new PaymentCallbackData('bad-amount', 'success', 'TX', 'REF', 1));
+    }
+
+    public function test_manual_gateway_is_pending_until_verified(): void
+    {
+        $order = Order::factory()->create(['subtotal' => 400000, 'total_amount' => 400000]);
+        $payment = $this->app->make(PaymentOrchestrator::class)->initiate($order, PaymentMethod::MANUAL, 'manual', 'manual-key');
+        $this->assertSame(PaymentStatus::PENDING, $payment->status);
+        $verified = $this->app->make(PaymentOrchestrator::class)->handleCallback($payment, new PaymentCallbackData('manual-1', 'success', 'MANUAL-TX', null, 400000));
+        $this->assertSame(PaymentStatus::SUCCESS, $verified->status);
+    }
+
+    public function test_wallet_payment_debits_once_and_marks_order_paid(): void
+    {
+        $order = Order::factory()->create(['subtotal' => 75000, 'total_amount' => 75000]);
+        $order->user->wallets()->create(['currency' => 'IRR', 'balance' => 100000, 'status' => 'active']);
+        $payment = $this->app->make(PaymentOrchestrator::class)->payWithWallet($order, 'wallet-key');
+        $this->assertSame(PaymentMethod::WALLET->value, $payment->method);
+        $this->assertSame(PaymentStatus::SUCCESS, $payment->status);
+        $this->assertSame(25000, $order->user->wallets()->first()->refresh()->balance);
+        $this->assertSame('paid', $order->refresh()->status->value);
+        $same = $this->app->make(PaymentOrchestrator::class)->payWithWallet($order, 'wallet-key');
+        $this->assertTrue($payment->is($same));
+        $this->assertSame(1, $order->user->wallets()->first()->transactions()->count());
+    }
+
+    public function test_gateway_rejects_unsupported_currency(): void
+    {
+        $gateway = $this->app->make(FakePaymentGateway::class);
+        $payment = Payment::factory()->create(['amount' => 1000, 'currency' => 'JPY']);
+        $this->expectException(PaymentException::class);
+        $gateway->initiate($payment);
+    }
+
+    public function test_fake_gateway_can_simulate_failure(): void
+    {
+        $gateway = $this->app->make(FakePaymentGateway::class);
+        $payment = Payment::factory()->create(['amount' => 1000, 'currency' => 'IRR', 'metadata' => ['simulate_failure' => true]]);
+        $result = $gateway->initiate($payment);
+        $this->assertFalse($result->successful);
+        $this->assertSame('failed', $result->status);
+    }
+}

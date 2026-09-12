@@ -10,6 +10,7 @@ use App\Contracts\FeatureManager;
 use App\Contracts\GiftCodeService;
 use App\Contracts\NotificationService;
 use App\Contracts\OrderService;
+use App\Contracts\PaymentGatewayContract;
 use App\Contracts\PricingService;
 use App\Contracts\ReferralService;
 use App\Contracts\ServiceLifecycle;
@@ -30,6 +31,7 @@ use App\Services\Marketing\DatabaseGiftCodeService;
 use App\Services\Marketing\DatabaseReferralService;
 use App\Services\Notifications\DatabaseNotificationService;
 use App\Services\Orders\DatabaseOrderService;
+use App\Services\Payment\FakePaymentGateway;
 use App\Services\Service\DatabaseServiceLifecycle;
 use App\Services\ServiceProvider\FakeServiceProvider;
 use App\Services\Settings\DatabaseSettingsStore;
@@ -59,5 +61,6 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(ServiceProviderContract::class, FakeServiceProvider::class);
         $this->app->singleton(NotificationService::class, DatabaseNotificationService::class);
         $this->app->singleton(SupportService::class, DatabaseSupportService::class);
+        $this->app->singleton(PaymentGatewayContract::class, FakePaymentGateway::class);
     }
 }
