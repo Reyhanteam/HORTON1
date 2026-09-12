@@ -19,6 +19,7 @@ use App\Contracts\SettingsStore;
 use App\Contracts\SupportService;
 use App\Contracts\UserAccessChecker;
 use App\Contracts\UserLifecycle;
+use App\Contracts\WalletLedger;
 use App\Contracts\WalletService;
 use App\Services\Auth\LaravelAdminAuthenticator;
 use App\Services\Auth\UserAccessService;
@@ -37,6 +38,7 @@ use App\Services\ServiceProvider\FakeServiceProvider;
 use App\Services\Settings\DatabaseSettingsStore;
 use App\Services\Settings\FeatureManager as DatabaseFeatureManager;
 use App\Services\Support\DatabaseSupportService;
+use App\Services\Wallet\DatabaseWalletLedger;
 use App\Services\Wallet\DatabaseWalletService;
 use Illuminate\Support\ServiceProvider;
 
@@ -53,6 +55,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(PricingService::class, DatabasePricingService::class);
         $this->app->singleton(OrderService::class, DatabaseOrderService::class);
         $this->app->singleton(WalletService::class, DatabaseWalletService::class);
+        $this->app->singleton(WalletLedger::class, DatabaseWalletLedger::class);
         $this->app->singleton(DiscountService::class, DatabaseDiscountService::class);
         $this->app->singleton(GiftCodeService::class, DatabaseGiftCodeService::class);
         $this->app->singleton(ReferralService::class, DatabaseReferralService::class);
