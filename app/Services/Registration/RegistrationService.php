@@ -30,6 +30,7 @@ final class RegistrationService
         private readonly FeatureManager $features,
         private readonly SettingsStore $settings,
         private readonly DatabaseManager $db,
+        private readonly PhoneNumberNormalizer $phoneNormalizer,
     ) {}
 
     public function begin(TelegramUpdate $update): User
@@ -208,24 +209,13 @@ final class RegistrationService
             ]);
         }
 
-        $raw = trim((string) ($contact->phone_number ?? ''));
-        $normalized = preg_replace('/[^0-9+]/', '', $raw) ?? '';
-
-        if (str_starts_with($normalized, '00')) {
-            $normalized = '+' . substr($normalized, 2);
-        }
-
-        if (!str_starts_with($normalized, '+')) {
-            $normalized = '+' . $normalized;
-        }
-
-        if (preg_match('/^\+[1-9][0-9]{7,14}$/', $normalized) !== 1) {
+        try {
+            return $this->phoneNormalizer->normalize((string) ($contact->phone_number ?? ''));
+        } catch (ValidationException) {
             throw ValidationException::withMessages([
                 'phone' => $this->message('registration.phone_invalid'),
             ]);
         }
-
-        return $normalized;
     }
 
     private function syncTelegramAccount(TelegramAccount $account, TelegramUpdate $update): void
