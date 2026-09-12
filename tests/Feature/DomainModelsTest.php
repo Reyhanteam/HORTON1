@@ -77,20 +77,27 @@ class DomainModelsTest extends TestCase
         $this->assertSame(TransactionDirection::CREDIT, $walletTransaction->direction);
     }
 
-    public function test_enum_casts_persist_backing_values(): void
+    public function test_enum_casts_store_backing_values(): void
     {
-        $order = new Order(['status' => OrderStatus::COMPLETED]);
-        $payment = new Payment(['status' => PaymentStatus::PENDING]);
-        $service = new Service(['status' => ServiceStatus::EXPIRED]);
-        $discount = new DiscountCode(['type' => DiscountType::FIXED]);
-        $gift = new GiftCode(['type' => GiftCodeType::DISCOUNT]);
-        $walletTransaction = new WalletTransaction(['direction' => TransactionDirection::DEBIT]);
+        $order = new Order;
+        $payment = new Payment;
+        $service = new Service;
+        $discount = new DiscountCode;
+        $gift = new GiftCode;
+        $walletTransaction = new WalletTransaction;
 
-        $this->assertSame('completed', $order->getRawOriginal('status'));
-        $this->assertSame('pending', $payment->getRawOriginal('status'));
-        $this->assertSame('expired', $service->getRawOriginal('status'));
-        $this->assertSame('fixed', $discount->getRawOriginal('type'));
-        $this->assertSame('discount', $gift->getRawOriginal('type'));
-        $this->assertSame('debit', $walletTransaction->getRawOriginal('direction'));
+        $order->status = OrderStatus::COMPLETED;
+        $payment->status = PaymentStatus::PENDING;
+        $service->status = ServiceStatus::EXPIRED;
+        $discount->type = DiscountType::FIXED;
+        $gift->type = GiftCodeType::DISCOUNT;
+        $walletTransaction->direction = TransactionDirection::DEBIT;
+
+        $this->assertSame('completed', $order->getAttributes()['status']);
+        $this->assertSame('pending', $payment->getAttributes()['status']);
+        $this->assertSame('expired', $service->getAttributes()['status']);
+        $this->assertSame('fixed', $discount->getAttributes()['type']);
+        $this->assertSame('discount', $gift->getAttributes()['type']);
+        $this->assertSame('debit', $walletTransaction->getAttributes()['direction']);
     }
 }
