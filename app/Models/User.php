@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Str;
 
 #[Fillable(['name', 'email', 'password'])]
 #[Hidden(['password', 'remember_token'])]
@@ -17,6 +18,15 @@ class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
+
+    protected static function booted(): void
+    {
+        static::creating(function (User $user): void {
+            if (blank($user->uuid)) {
+                $user->uuid = (string) Str::uuid();
+            }
+        });
+    }
 
     public function telegramAccount(): HasOne { return $this->hasOne(TelegramAccount::class); }
     public function profile(): HasOne { return $this->hasOne(UserProfile::class); }
@@ -37,6 +47,6 @@ class User extends Authenticatable
 
     protected function casts(): array
     {
-        return ['email_verified_at' => 'datetime', 'password' => 'hashed'];
+        return ['email_verified_at' => 'datetime', 'phone_verified_at' => 'datetime', 'last_seen_at' => 'datetime', 'password' => 'hashed'];
     }
 }
