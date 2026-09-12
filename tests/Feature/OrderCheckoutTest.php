@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Contracts\CheckoutService;
-use App\Contracts\InvoiceService;
 use App\Contracts\OrderService;
 use App\Contracts\OrderStateMachine;
 use App\DTOs\CheckoutData;
@@ -14,9 +13,6 @@ use App\Models\Category;
 use App\Models\Plan;
 use App\Models\Product;
 use App\Models\User;
-use App\Services\Orders\DatabaseCheckoutService;
-use App\Services\Orders\DatabaseOrderService;
-use App\Services\Orders\DatabaseOrderStateMachine;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -41,6 +37,12 @@ class OrderCheckoutTest extends TestCase
         $this->assertSame('Original Plan', $item->plan_name_snapshot);
         $this->assertSame(30, $item->duration_value_snapshot);
         $this->assertSame(50, $item->capacity_value_snapshot);
+
+        $plan->update(['name' => 'Changed Plan', 'price' => 999999, 'duration_value' => 7]);
+        $historical = $result->order->items()->firstOrFail();
+        $this->assertSame(250000, $historical->unit_price);
+        $this->assertSame('Original Plan', $historical->plan_name_snapshot);
+        $this->assertSame(30, $historical->duration_value_snapshot);
     }
 
     public function test_catalog_price_is_rechecked_and_client_cannot_override_it(): void
@@ -78,7 +80,7 @@ class OrderCheckoutTest extends TestCase
         $this->app->make(OrderService::class)->transition($order->refresh(), OrderStatus::COMPLETED);
     }
 
-    public function test_cancelled_order_cannot_be_paid_and_completed_order_cannot_be_cancelled(): void
+    public function test_cancelled_order_cannot_be_paid(): void
     {
         $user = User::factory()->create();
         $plan = Plan::factory()->create();
@@ -87,7 +89,13 @@ class OrderCheckoutTest extends TestCase
         $orders->cancel($cancelled);
         $this->expectException(DomainRuleViolation::class);
         $orders->markPaid($cancelled);
+    }
 
+    public function test_completed_order_cannot_be_cancelled(): void
+    {
+        $user = User::factory()->create();
+        $plan = Plan::factory()->create();
+        $orders = $this->app->make(OrderService::class);
         $completed = $orders->create($user, [new OrderItemData($plan->id)], 'complete-key');
         $orders->markPaid($completed);
         $orders->transition($completed, OrderStatus::PROCESSING);
@@ -137,5 +145,14 @@ class OrderCheckoutTest extends TestCase
         $this->assertTrue($first->invoice->is($second->invoice));
         $this->assertSame(1, $user->orders()->where('idempotency_key', 'checkout-replay')->count());
         $this->assertSame(1, $first->order->items()->count());
+    }
+
+    public function test_checkout_rejects_invalid_currency(): void
+    {
+        $user = User::factory()->create();
+        $plan = Plan::factory()->create();
+        $this->expectException(DomainRuleViolation::class);
+        $this->expectExceptionMessage('Currency must be a three-letter ISO code');
+        $this->app->make(CheckoutService::class)->checkout($user, new CheckoutData([new OrderItemData($plan->id)], 'INVALID'));
     }
 }
