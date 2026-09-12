@@ -8,7 +8,6 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Identity
         Schema::create('telegram_accounts', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
@@ -32,7 +31,6 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        // Catalog
         Schema::create('categories', function (Blueprint $table) {
             $table->id();
             $table->foreignId('parent_id')->nullable()->constrained('categories')->nullOnDelete();
@@ -97,7 +95,6 @@ return new class extends Migration
             $table->index(['plan_id', 'currency', 'starts_at', 'ends_at']);
         });
 
-        // Admin identity is independent from end users.
         Schema::create('admin_users', function (Blueprint $table) {
             $table->id();
             $table->string('name');
@@ -137,7 +134,37 @@ return new class extends Migration
             $table->primary(['permission_id', 'role_id']);
         });
 
-        // Orders and invoices
+        Schema::create('discount_codes', function (Blueprint $table) {
+            $table->id();
+            $table->string('code')->unique();
+            $table->string('type', 32);
+            $table->unsignedBigInteger('value');
+            $table->unsignedBigInteger('minimum_order_amount')->default(0);
+            $table->unsignedBigInteger('maximum_discount_amount')->nullable();
+            $table->unsignedInteger('usage_limit')->nullable();
+            $table->unsignedInteger('usage_limit_per_user')->nullable();
+            $table->unsignedInteger('used_count')->default(0);
+            $table->timestamp('starts_at')->nullable()->index();
+            $table->timestamp('expires_at')->nullable()->index();
+            $table->boolean('is_active')->default(true)->index();
+            $table->json('metadata')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('gift_codes', function (Blueprint $table) {
+            $table->id();
+            $table->string('code')->unique();
+            $table->string('type', 32);
+            $table->unsignedBigInteger('value');
+            $table->unsignedInteger('usage_limit')->nullable();
+            $table->unsignedInteger('used_count')->default(0);
+            $table->timestamp('starts_at')->nullable()->index();
+            $table->timestamp('expires_at')->nullable()->index();
+            $table->boolean('is_active')->default(true)->index();
+            $table->json('metadata')->nullable();
+            $table->timestamps();
+        });
+
         Schema::create('orders', function (Blueprint $table) {
             $table->id();
             $table->uuid('uuid')->unique();
@@ -149,8 +176,8 @@ return new class extends Migration
             $table->unsignedBigInteger('wallet_amount')->default(0);
             $table->unsignedBigInteger('total_amount')->default(0);
             $table->char('currency', 3)->default('IRR');
-            $table->foreignId('discount_code_id')->nullable()->constrained()->nullOnDelete();
-            $table->foreignId('gift_code_id')->nullable()->constrained()->nullOnDelete();
+            $table->unsignedBigInteger('discount_code_id')->nullable();
+            $table->unsignedBigInteger('gift_code_id')->nullable();
             $table->timestamp('paid_at')->nullable()->index();
             $table->timestamp('cancelled_at')->nullable();
             $table->timestamp('completed_at')->nullable();
@@ -158,6 +185,13 @@ return new class extends Migration
             $table->json('metadata')->nullable();
             $table->timestamps();
             $table->index(['user_id', 'status', 'created_at']);
+            $table->index(['discount_code_id']);
+            $table->index(['gift_code_id']);
+        });
+
+        Schema::table('orders', function (Blueprint $table) {
+            $table->foreign('discount_code_id')->references('id')->on('discount_codes')->nullOnDelete();
+            $table->foreign('gift_code_id')->references('id')->on('gift_codes')->nullOnDelete();
         });
 
         Schema::create('order_items', function (Blueprint $table) {
@@ -191,7 +225,6 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        // Payments
         Schema::create('payments', function (Blueprint $table) {
             $table->id();
             $table->uuid('uuid')->unique();
@@ -240,7 +273,6 @@ return new class extends Migration
             $table->index(['payment_id', 'status']);
         });
 
-        // Wallet ledger
         Schema::create('wallets', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->restrictOnDelete();
@@ -271,7 +303,6 @@ return new class extends Migration
             $table->index(['reference_type', 'reference_id']);
         });
 
-        // Service providers and provisioned services
         Schema::create('service_providers', function (Blueprint $table) {
             $table->id();
             $table->string('name');
@@ -336,24 +367,6 @@ return new class extends Migration
             $table->index(['service_id', 'operation', 'status']);
         });
 
-        // Marketing
-        Schema::create('discount_codes', function (Blueprint $table) {
-            $table->id();
-            $table->string('code')->unique();
-            $table->string('type', 32);
-            $table->unsignedBigInteger('value');
-            $table->unsignedBigInteger('minimum_order_amount')->default(0);
-            $table->unsignedBigInteger('maximum_discount_amount')->nullable();
-            $table->unsignedInteger('usage_limit')->nullable();
-            $table->unsignedInteger('usage_limit_per_user')->nullable();
-            $table->unsignedInteger('used_count')->default(0);
-            $table->timestamp('starts_at')->nullable()->index();
-            $table->timestamp('expires_at')->nullable()->index();
-            $table->boolean('is_active')->default(true)->index();
-            $table->json('metadata')->nullable();
-            $table->timestamps();
-        });
-
         Schema::create('discount_usages', function (Blueprint $table) {
             $table->id();
             $table->foreignId('discount_code_id')->constrained()->restrictOnDelete();
@@ -363,20 +376,6 @@ return new class extends Migration
             $table->timestamps();
             $table->unique(['discount_code_id', 'order_id']);
             $table->index(['discount_code_id', 'user_id']);
-        });
-
-        Schema::create('gift_codes', function (Blueprint $table) {
-            $table->id();
-            $table->string('code')->unique();
-            $table->string('type', 32);
-            $table->unsignedBigInteger('value');
-            $table->unsignedInteger('usage_limit')->nullable();
-            $table->unsignedInteger('used_count')->default(0);
-            $table->timestamp('starts_at')->nullable()->index();
-            $table->timestamp('expires_at')->nullable()->index();
-            $table->boolean('is_active')->default(true)->index();
-            $table->json('metadata')->nullable();
-            $table->timestamps();
         });
 
         Schema::create('gift_code_redemptions', function (Blueprint $table) {
@@ -394,8 +393,8 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->unique()->constrained()->cascadeOnDelete();
             $table->string('code')->unique();
-            $table->unsignedDecimal('commission_rate', 5, 2)->default(0);
-            $table->unsignedDecimal('cashback_rate', 5, 2)->default(0);
+            $table->decimal('commission_rate', 5, 2)->unsigned()->default(0);
+            $table->decimal('cashback_rate', 5, 2)->unsigned()->default(0);
             $table->string('status', 32)->default('active')->index();
             $table->timestamps();
         });
@@ -453,7 +452,6 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        // Support
         Schema::create('support_tickets', function (Blueprint $table) {
             $table->id();
             $table->uuid('uuid')->unique();
@@ -480,7 +478,6 @@ return new class extends Migration
             $table->index(['sender_type', 'sender_id']);
         });
 
-        // Notifications and broadcasts
         Schema::create('notifications', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
@@ -523,7 +520,6 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        // Audit
         Schema::create('audit_logs', function (Blueprint $table) {
             $table->id();
             $table->foreignId('admin_user_id')->nullable()->constrained('admin_users')->nullOnDelete();
@@ -540,7 +536,6 @@ return new class extends Migration
             $table->index(['action', 'created_at']);
         });
 
-        // Bot configuration. Secrets remain in .env/secret storage.
         Schema::create('bot_settings', function (Blueprint $table) {
             $table->id();
             $table->string('key')->unique();
@@ -601,8 +596,8 @@ return new class extends Migration
         Schema::dropIfExists('referrals');
         Schema::dropIfExists('referral_accounts');
         Schema::dropIfExists('gift_code_redemptions');
-        Schema::dropIfExists('gift_codes');
         Schema::dropIfExists('discount_usages');
+        Schema::dropIfExists('gift_codes');
         Schema::dropIfExists('discount_codes');
         Schema::dropIfExists('service_operations');
         Schema::dropIfExists('services');
