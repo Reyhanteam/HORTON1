@@ -2,73 +2,58 @@
 
 namespace App\Services\Settings;
 
-use App\Contracts\SettingsStore;
 use App\Models\BotSetting;
-use Illuminate\Support\Facades\Cache;
 
-class DatabaseSettingsStore implements SettingsStore
+class DatabaseSettingsStore extends AbstractSettingsStore
 {
-    private const CACHE_KEY = 'horton.settings.all';
-
-    public function get(string $key, mixed $default = null): mixed
+    public function set(string $key, mixed $value, bool $isPublic = false): void
     {
-        $settings = $this->all();
-        return array_key_exists($key, $settings) ? $settings[$key]['value'] : $default;
+        $this->store($key, $value, $isPublic);
     }
 
-    public function set(string $key, mixed $value, bool $isPublic = false): void
+    protected function load(): array
+    {
+        return BotSetting::query()
+            ->get(['key', 'value', 'type', 'is_public'])
+            ->mapWithKeys(fn (BotSetting $setting) => [
+                $setting->key => [
+                    'value' => $this->decode($setting->value, $setting->type),
+                    'is_public' => $setting->is_public,
+                ],
+            ])->all();
+    }
+
+    protected function write(string $key, string $value, string $type, bool $isPublic): void
     {
         BotSetting::query()->updateOrCreate(
             ['key' => $key],
-            ['value' => $this->encode($value), 'is_public' => $isPublic]
+            ['value' => $value, 'type' => $type, 'is_public' => $isPublic]
         );
-
-        $this->flush();
     }
 
-    public function has(string $key): bool
-    {
-        return BotSetting::query()->where('key', $key)->exists();
-    }
-
-    public function forget(string $key): void
+    protected function delete(string $key): void
     {
         BotSetting::query()->where('key', $key)->delete();
-        $this->flush();
     }
 
-    public function flush(): void
-    {
-        Cache::forget(self::CACHE_KEY);
-    }
-
-    private function all(): array
-    {
-        return Cache::rememberForever(self::CACHE_KEY, fn () => BotSetting::query()
-            ->get(['key', 'value', 'is_public'])
-            ->mapWithKeys(fn (BotSetting $setting) => [
-                $setting->key => [
-                    'value' => $this->decode($setting->value),
-                    'is_public' => $setting->is_public,
-                ],
-            ])->all());
-    }
-
-    private function encode(mixed $value): string
-    {
-        return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
-    }
-
-    private function decode(mixed $value): mixed
+    private function decode(mixed $value, string $type): mixed
     {
         if (!is_string($value)) {
             return $value;
         }
 
         try {
-            return json_decode($value, true, 512, JSON_THROW_ON_ERROR);
+            $decoded = json_decode($value, true, 512, JSON_THROW_ON_ERROR);
         } catch (\JsonException) {
             return $value;
         }
+
+        return match ($type) {
+            'boolean' => (bool) $decoded,
+            'integer' => (int) $decoded,
+            'float' => (float) $decoded,
+            'json' => is_array($decoded) ? $decoded : [],
+            default => is_string($decoded) ? $decoded : (string) $decoded,
+        };
     }
 }
