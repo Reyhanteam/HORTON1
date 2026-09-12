@@ -68,7 +68,7 @@ final class AuthenticationAuthorizationTest extends TestCase
         $lifecycle = app(UserLifecycle::class);
         $user = $lifecycle->register(['name' => 'Test User', 'username' => 'tester', 'password' => 'secret']);
 
-        $this->assertSame(UserStatus::Pending->value, $user->status);
+        $this->assertSame(UserStatus::Pending, $user->status);
         $this->assertFalse(app(UserAccessChecker::class)->canAccessBot($user->fresh()));
 
         TelegramAccount::create([
