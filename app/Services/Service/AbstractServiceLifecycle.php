@@ -5,11 +5,11 @@ namespace App\Services\Service;
 use App\Contracts\ServiceLifecycle;
 use App\Contracts\ServiceProviderContract;
 use App\DTOs\ServiceProvider\ServiceProviderContext;
+use App\DTOs\ServiceProvider\ServiceProviderResult;
 use App\Enums\ServiceProviderOperation;
 use App\Enums\ServiceStatus;
 use App\Exceptions\DomainRuleViolation;
 use App\Exceptions\ServiceProviderException;
-use App\Models\OrderItem;
 use App\Models\Plan;
 use App\Models\Service;
 use App\Models\ServiceOperation;
@@ -19,6 +19,7 @@ use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Throwable;
 
 abstract class AbstractServiceLifecycle implements ServiceLifecycle
 {
@@ -32,9 +33,13 @@ abstract class AbstractServiceLifecycle implements ServiceLifecycle
             $provider = $this->selectProvider($providerId);
             $account = $this->selectAccount($provider);
             $trial = (bool) $plan->is_trial;
+
+            if ($trial && Service::query()->where('user_id', $user->id)->where('is_trial', true)->whereIn('status', [ServiceStatus::PENDING, ServiceStatus::ACTIVE])->exists()) {
+                throw new DomainRuleViolation('User already has an active or pending trial service.', 'service.trial_already_used');
+            }
+
             $durationValue = $trial ? (int) $plan->trial_duration_value : (int) $plan->duration_value;
             $durationUnit = $trial ? ($plan->trial_duration_unit ?: $plan->duration_unit) : $plan->duration_unit;
-            if ($durationValue <= 0) throw new DomainRuleViolation('Service duration must be positive.', 'service.duration');
 
             $service = Service::query()->create(array_merge([
                 'uuid' => (string) Str::uuid(),
@@ -51,41 +56,40 @@ abstract class AbstractServiceLifecycle implements ServiceLifecycle
                 'metadata' => ['duration_value' => $durationValue, 'duration_unit' => $durationUnit],
             ], $attributes));
 
-            $service->setRelation('plan', $plan)->setRelation('provider', $provider)->setRelation('providerAccount', $account);
             return $service->refresh();
         });
     }
 
     final public function provision(Service $service): Service
     {
-        return $this->execute($service, ServiceProviderOperation::Create, fn (Service $locked, ServiceProviderContext $context) => $this->provider->create($locked, $context), function (Service $locked, $result): void {
+        return $this->runProviderOperation($service, ServiceProviderOperation::Create, fn (Service $locked, ServiceProviderContext $context) => $this->provider->create($locked, $context), function (Service $locked, ServiceProviderResult $result): void {
             $locked->forceFill([
                 'status' => ServiceStatus::ACTIVE,
-                'external_id' => $result->externalId,
-                'external_reference' => $result->externalReference,
+                'external_id' => $result->externalId ?: $locked->external_id,
+                'external_reference' => $result->externalReference ?: $locked->external_reference,
                 'starts_at' => $locked->starts_at ?: now(),
                 'expires_at' => $result->expiresAt ?: $this->calculateExpiry($locked),
                 'capacity' => $result->capacity ?? $locked->capacity,
                 'used_capacity' => $result->usedCapacity ?? $locked->used_capacity,
                 'metadata' => array_merge($locked->metadata ?? [], $result->metadata),
             ])->save();
-        });
+        }, 'service-provision-'.$service->id);
     }
 
     final public function get(Service $service): Service
     {
-        return $this->syncProvider($service, ServiceProviderOperation::Get, fn ($locked, $context) => $this->provider->get($locked, $context));
+        return $this->runProviderOperation($service, ServiceProviderOperation::Get, fn ($locked, $context) => $this->provider->get($locked, $context), fn ($locked, $result) => $this->applyProviderState($locked, $result));
     }
 
     final public function status(Service $service): Service
     {
-        return $this->syncProvider($service, ServiceProviderOperation::Status, fn ($locked, $context) => $this->provider->status($locked, $context));
+        return $this->runProviderOperation($service, ServiceProviderOperation::Status, fn ($locked, $context) => $this->provider->status($locked, $context), fn ($locked, $result) => $this->applyProviderState($locked, $result));
     }
 
     final public function renew(Service $service, int $durationValue, string $durationUnit = 'day'): Service
     {
         $this->assertDuration($durationValue, $durationUnit);
-        return $this->syncProvider($service, ServiceProviderOperation::Renew, fn ($locked, $context) => $this->provider->renew($locked, $context, $durationValue, $durationUnit), function ($locked, $result) use ($durationValue, $durationUnit): void {
+        return $this->runProviderOperation($service, ServiceProviderOperation::Renew, fn ($locked, $context) => $this->provider->renew($locked, $context, $durationValue, $durationUnit), function ($locked, $result) use ($durationValue, $durationUnit): void {
             $locked->forceFill(['status' => ServiceStatus::ACTIVE, 'expires_at' => $result->expiresAt ?: $this->futureExpiry($locked)->add($durationValue, $durationUnit)])->save();
         });
     }
@@ -93,7 +97,7 @@ abstract class AbstractServiceLifecycle implements ServiceLifecycle
     final public function extend(Service $service, int $durationValue, string $durationUnit = 'day'): Service
     {
         $this->assertDuration($durationValue, $durationUnit);
-        return $this->syncProvider($service, ServiceProviderOperation::Extend, fn ($locked, $context) => $this->provider->extend($locked, $context, $durationValue, $durationUnit), function ($locked, $result) use ($durationValue, $durationUnit): void {
+        return $this->runProviderOperation($service, ServiceProviderOperation::Extend, fn ($locked, $context) => $this->provider->extend($locked, $context, $durationValue, $durationUnit), function ($locked, $result) use ($durationValue, $durationUnit): void {
             $locked->forceFill(['status' => ServiceStatus::ACTIVE, 'expires_at' => $result->expiresAt ?: $this->futureExpiry($locked)->add($durationValue, $durationUnit)])->save();
         });
     }
@@ -101,7 +105,7 @@ abstract class AbstractServiceLifecycle implements ServiceLifecycle
     final public function extendCapacity(Service $service, int $amount): Service
     {
         if ($amount <= 0) throw new DomainRuleViolation('Capacity extension must be positive.', 'service.capacity');
-        return $this->syncProvider($service, ServiceProviderOperation::AddCapacity, fn ($locked, $context) => $this->provider->addCapacity($locked, $context, $amount), function ($locked, $result) use ($amount): void {
+        return $this->runProviderOperation($service, ServiceProviderOperation::AddCapacity, fn ($locked, $context) => $this->provider->addCapacity($locked, $context, $amount), function ($locked, $result) use ($amount): void {
             $locked->forceFill(['capacity' => $result->capacity ?? ((int) $locked->capacity + $amount), 'used_capacity' => $result->usedCapacity ?? $locked->used_capacity])->save();
         });
     }
@@ -109,47 +113,73 @@ abstract class AbstractServiceLifecycle implements ServiceLifecycle
     final public function disable(Service $service): Service
     {
         if ($service->status === ServiceStatus::DISABLED) return $service->refresh();
-        return $this->syncProvider($service, ServiceProviderOperation::Disable, fn ($locked, $context) => $this->provider->disable($locked, $context), function ($locked): void {
+        return $this->runProviderOperation($service, ServiceProviderOperation::Disable, fn ($locked, $context) => $this->provider->disable($locked, $context), function ($locked): void {
             $locked->forceFill(['status' => ServiceStatus::DISABLED])->save();
         });
     }
 
     final public function delete(Service $service): Service
     {
-        return $this->syncProvider($service, ServiceProviderOperation::Delete, fn ($locked, $context) => $this->provider->delete($locked, $context), function ($locked): void {
-            $locked->forceFill(['status' => ServiceStatus::DISABLED, 'metadata' => array_merge($locked->metadata ?? [], ['deleted_at' => now()->toIso8601String()])])->save();
+        return $this->runProviderOperation($service, ServiceProviderOperation::Delete, fn ($locked, $context) => $this->provider->delete($locked, $context), function ($locked): void {
+            $locked->forceFill(['status' => ServiceStatus::DISABLED, 'metadata' => array_merge($locked->metadata ?? [], ['provider_deleted_at' => now()->toIso8601String()])])->save();
         });
     }
 
-    private function execute(Service $service, ServiceProviderOperation $operation, callable $call, ?callable $apply = null): Service
+    private function runProviderOperation(Service $service, ServiceProviderOperation $operation, callable $call, ?callable $apply = null, ?string $idempotencyKey = null): Service
     {
-        return DB::transaction(function () use ($service, $operation, $call, $apply): Service {
-            $locked = Service::query()->with(['provider', 'providerAccount', 'plan'])->whereKey($service->id)->lockForUpdate()->firstOrFail();
-            $this->assertService($locked);
-            $operationRow = $this->startOperation($locked, $operation);
-            try {
-                $result = $call($locked, ServiceProviderContext::fromAccount($locked->providerAccount));
-                if (! $result->successful) throw new ServiceProviderException($result->errorMessage ?: 'Provider operation failed.', $result->errorCode ?: 'provider.operation_failed');
-                if ($apply) $apply($locked, $result);
-                $operationRow->forceFill(['status' => 'success', 'completed_at' => now(), 'response_metadata' => $this->resultMetadata($result)])->save();
-                return $locked->refresh();
-            } catch (\Throwable $e) {
-                $operationRow->forceFill(['status' => 'failed', 'completed_at' => now(), 'error_code' => method_exists($e, 'getCode') ? (string) $e->getCode() : 'provider.error', 'error_message' => $e->getMessage()])->save();
-                $locked->forceFill(['status' => ServiceStatus::FAILED])->save();
-                throw $e;
-            }
+        try {
+            return DB::transaction(function () use ($service, $operation, $call, $apply, $idempotencyKey): Service {
+                $locked = Service::query()->with(['provider', 'providerAccount', 'plan'])->whereKey($service->id)->lockForUpdate()->firstOrFail();
+                $this->assertService($locked);
+                $operationRow = $this->startOperation($locked, $operation, $idempotencyKey);
+
+                try {
+                    $result = $call($locked, ServiceProviderContext::fromAccount($locked->providerAccount));
+                    if (! $result->successful) throw new ServiceProviderException($result->errorMessage ?: 'Provider operation failed.', $result->errorCode ?: 'provider.operation_failed');
+                    if ($apply) $apply($locked, $result);
+                    $operationRow->forceFill(['status' => 'success', 'completed_at' => now(), 'response_metadata' => $this->resultMetadata($result)])->save();
+                    return $locked->refresh();
+                } catch (Throwable $e) {
+                    throw $e;
+                }
+            });
+        } catch (Throwable $e) {
+            $this->recordFailure($service, $operation, $e, $idempotencyKey);
+            throw $e;
+        }
+    }
+
+    private function recordFailure(Service $service, ServiceProviderOperation $operation, Throwable $e, ?string $idempotencyKey): void
+    {
+        DB::transaction(function () use ($service, $operation, $e, $idempotencyKey): void {
+            $locked = Service::query()->whereKey($service->id)->lockForUpdate()->first();
+            if (! $locked) return;
+            $existing = $idempotencyKey ? ServiceOperation::query()->where('idempotency_key', $idempotencyKey)->first() : null;
+            $row = $existing ?: ServiceOperation::query()->create(['service_id' => $locked->id, 'operation' => $operation->value, 'status' => 'failed', 'idempotency_key' => $idempotencyKey ?: 'service-failed-'.$locked->id.'-'.Str::uuid(), 'started_at' => now()]);
+            $row->forceFill(['status' => 'failed', 'completed_at' => now(), 'error_code' => (string) $e->getCode() ?: 'provider.error', 'error_message' => $e->getMessage()])->save();
+            $locked->forceFill(['status' => ServiceStatus::FAILED])->save();
         });
     }
 
-    private function syncProvider(Service $service, ServiceProviderOperation $operation, callable $call, ?callable $apply = null): Service
+    private function startOperation(Service $service, ServiceProviderOperation $operation, ?string $idempotencyKey): ServiceOperation
     {
-        return $this->execute($service, $operation, $call, $apply);
+        if ($idempotencyKey) {
+            $existing = ServiceOperation::query()->where('idempotency_key', $idempotencyKey)->lockForUpdate()->first();
+            if ($existing?->status === 'success') return $existing;
+            if ($existing) return $existing->forceFill(['status' => 'running', 'started_at' => now(), 'completed_at' => null, 'error_code' => null, 'error_message' => null]);
+        }
+        return ServiceOperation::query()->create(['service_id' => $service->id, 'operation' => $operation->value, 'status' => 'running', 'idempotency_key' => $idempotencyKey ?: 'service-'.$service->id.'-'.$operation->value.'-'.Str::uuid(), 'started_at' => now(), 'request_metadata' => ['provider_id' => $service->service_provider_id, 'account_id' => $service->provider_account_id]]);
     }
 
-    private function startOperation(Service $service, ServiceProviderOperation $operation): ServiceOperation
+    private function applyProviderState(Service $service, ServiceProviderResult $result): void
     {
-        $key = 'service-'.$service->id.'-'.$operation->value.'-'.Str::uuid();
-        return ServiceOperation::query()->create(['service_id' => $service->id, 'operation' => $operation->value, 'status' => 'running', 'idempotency_key' => $key, 'started_at' => now(), 'request_metadata' => ['provider_id' => $service->service_provider_id, 'account_id' => $service->provider_account_id]]);
+        $attributes = ['external_id' => $result->externalId ?: $service->external_id, 'external_reference' => $result->externalReference ?: $service->external_reference];
+        if ($result->status !== null && $result->status !== 'deleted') $attributes['status'] = ServiceStatus::tryFrom($result->status) ?: $service->status;
+        if ($result->expiresAt) $attributes['expires_at'] = $result->expiresAt;
+        if ($result->capacity !== null) $attributes['capacity'] = $result->capacity;
+        if ($result->usedCapacity !== null) $attributes['used_capacity'] = $result->usedCapacity;
+        $attributes['metadata'] = array_merge($service->metadata ?? [], $result->metadata);
+        $service->forceFill($attributes)->save();
     }
 
     private function assertPlan(Plan $plan): void
@@ -199,7 +229,7 @@ abstract class AbstractServiceLifecycle implements ServiceLifecycle
         return $service->expires_at?->isFuture() ? $service->expires_at->copy() : now();
     }
 
-    private function resultMetadata($result): array
+    private function resultMetadata(ServiceProviderResult $result): array
     {
         return array_filter(['external_id' => $result->externalId, 'external_reference' => $result->externalReference, 'status' => $result->status, 'expires_at' => $result->expiresAt?->toIso8601String(), 'capacity' => $result->capacity, 'used_capacity' => $result->usedCapacity, 'metadata' => $result->metadata], static fn ($value) => $value !== null);
     }
