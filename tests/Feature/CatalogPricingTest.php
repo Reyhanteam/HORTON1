@@ -82,21 +82,29 @@ class CatalogPricingTest extends TestCase
         $pricing->price($plan, 'USD');
     }
 
-    public function test_pricing_rejects_invalid_currency_and_invalid_price_window(): void
+    public function test_pricing_rejects_invalid_currency(): void
     {
         $plan = Plan::factory()->create();
-        $pricing = $this->app->make(PricingService::class);
-
         $this->expectException(DomainRuleViolation::class);
-        $pricing->price($plan, 'IR');
+        $this->expectExceptionMessage('Currency must be a valid');
+        $this->app->make(PricingService::class)->price($plan, 'IR');
+    }
+
+    public function test_pricing_uses_latest_active_price_window_when_multiple_prices_match(): void
+    {
+        Carbon::setTestNow('2026-09-12 12:00:00');
+        $plan = Plan::factory()->create(['price' => 100000]);
 
         PlanPrice::factory()->for($plan)->create([
-            'currency' => 'IRR', 'amount' => 100000,
-            'starts_at' => '2026-09-30 00:00:00', 'ends_at' => '2026-09-01 00:00:00',
+            'currency' => 'IRR', 'amount' => 120000, 'is_default' => true,
+            'starts_at' => '2026-08-01 00:00:00', 'ends_at' => '2026-12-31 23:59:59',
         ]);
-        Carbon::setTestNow('2026-09-12 12:00:00');
-        $this->expectException(DomainRuleViolation::class);
-        $pricing->price($plan, 'IRR');
+        PlanPrice::factory()->for($plan)->create([
+            'currency' => 'IRR', 'amount' => 140000, 'is_default' => true,
+            'starts_at' => '2026-09-10 00:00:00', 'ends_at' => '2026-09-20 23:59:59',
+        ]);
+
+        $this->assertSame(140000, $this->app->make(PricingService::class)->price($plan));
         Carbon::setTestNow();
     }
 }
