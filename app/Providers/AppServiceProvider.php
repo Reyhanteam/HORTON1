@@ -3,15 +3,37 @@
 namespace App\Providers;
 
 use App\Contracts\AdminAuthenticator;
+use App\Contracts\CashbackService;
+use App\Contracts\CatalogService;
+use App\Contracts\DiscountService;
 use App\Contracts\FeatureManager;
+use App\Contracts\GiftCodeService;
+use App\Contracts\NotificationService;
+use App\Contracts\OrderService;
+use App\Contracts\PricingService;
+use App\Contracts\ReferralService;
+use App\Contracts\ServiceLifecycle;
 use App\Contracts\SettingsStore;
+use App\Contracts\SupportService;
 use App\Contracts\UserAccessChecker;
 use App\Contracts\UserLifecycle;
+use App\Contracts\WalletService;
 use App\Services\Auth\LaravelAdminAuthenticator;
 use App\Services\Auth\UserAccessService;
 use App\Services\Auth\UserLifecycleService;
+use App\Services\Catalog\DatabaseCatalogService;
+use App\Services\Catalog\DatabasePricingService;
+use App\Services\Marketing\DatabaseCashbackService;
+use App\Services\Marketing\DatabaseDiscountService;
+use App\Services\Marketing\DatabaseGiftCodeService;
+use App\Services\Marketing\DatabaseReferralService;
+use App\Services\Notifications\DatabaseNotificationService;
+use App\Services\Orders\DatabaseOrderService;
+use App\Services\Service\DatabaseServiceLifecycle;
 use App\Services\Settings\DatabaseSettingsStore;
 use App\Services\Settings\FeatureManager as DatabaseFeatureManager;
+use App\Services\Support\DatabaseSupportService;
+use App\Services\Wallet\DatabaseWalletService;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -23,9 +45,16 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(AdminAuthenticator::class, LaravelAdminAuthenticator::class);
         $this->app->singleton(UserLifecycle::class, UserLifecycleService::class);
         $this->app->singleton(UserAccessChecker::class, UserAccessService::class);
-    }
-
-    public function boot(): void
-    {
+        $this->app->singleton(CatalogService::class, DatabaseCatalogService::class);
+        $this->app->singleton(PricingService::class, DatabasePricingService::class);
+        $this->app->singleton(OrderService::class, DatabaseOrderService::class);
+        $this->app->singleton(WalletService::class, DatabaseWalletService::class);
+        $this->app->singleton(DiscountService::class, DatabaseDiscountService::class);
+        $this->app->singleton(GiftCodeService::class, DatabaseGiftCodeService::class);
+        $this->app->singleton(ReferralService::class, DatabaseReferralService::class);
+        $this->app->singleton(CashbackService::class, DatabaseCashbackService::class);
+        $this->app->singleton(ServiceLifecycle::class, DatabaseServiceLifecycle::class);
+        $this->app->singleton(NotificationService::class, DatabaseNotificationService::class);
+        $this->app->singleton(SupportService::class, DatabaseSupportService::class);
     }
 }
