@@ -87,8 +87,8 @@ class ApplicationServicesTest extends TestCase
 
     public function test_service_lifecycle_applies_rules(): void
     {
-        $user=User::factory()->create(); $plan=Plan::factory()->create(); $provider=ServiceProvider::factory()->create(['status'=>'active']); ServiceProviderAccount::factory()->for($provider,'provider')->create(['status'=>'active']); $services=$this->app->make(ServiceLifecycle::class);
-        $service=$services->create($user,$plan->id,$provider->id); $this->assertSame('pending',$service->status->value); $service=$services->renew($service,7);
+        $user=User::factory()->create(); $plan=Plan::factory()->create(); $provider=ServiceProvider::factory()->create(['status'=>'active']); ServiceProviderAccount::factory()->create(['service_provider_id'=>$provider->id,'status'=>'active']); $services=$this->app->make(ServiceLifecycle::class);
+        $service=$services->create($user,$plan->id,$provider->id); $this->assertSame('pending',$service->status->value); $service=$services->provision($service); $service=$services->renew($service,7);
         $this->assertSame('active',$service->status->value); $this->assertNotNull($service->expires_at);
     }
 
