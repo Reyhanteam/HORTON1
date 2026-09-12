@@ -13,6 +13,7 @@ use App\Contracts\OrderService;
 use App\Contracts\PricingService;
 use App\Contracts\ReferralService;
 use App\Contracts\ServiceLifecycle;
+use App\Contracts\ServiceProviderContract;
 use App\Contracts\SettingsStore;
 use App\Contracts\SupportService;
 use App\Contracts\UserAccessChecker;
@@ -30,6 +31,7 @@ use App\Services\Marketing\DatabaseReferralService;
 use App\Services\Notifications\DatabaseNotificationService;
 use App\Services\Orders\DatabaseOrderService;
 use App\Services\Service\DatabaseServiceLifecycle;
+use App\Services\ServiceProvider\FakeServiceProvider;
 use App\Services\Settings\DatabaseSettingsStore;
 use App\Services\Settings\FeatureManager as DatabaseFeatureManager;
 use App\Services\Support\DatabaseSupportService;
@@ -54,6 +56,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(ReferralService::class, DatabaseReferralService::class);
         $this->app->singleton(CashbackService::class, DatabaseCashbackService::class);
         $this->app->singleton(ServiceLifecycle::class, DatabaseServiceLifecycle::class);
+        $this->app->singleton(ServiceProviderContract::class, FakeServiceProvider::class);
         $this->app->singleton(NotificationService::class, DatabaseNotificationService::class);
         $this->app->singleton(SupportService::class, DatabaseSupportService::class);
     }
