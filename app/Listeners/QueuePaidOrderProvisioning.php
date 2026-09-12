@@ -6,6 +6,7 @@ use App\Contracts\ServiceLifecycle;
 use App\Events\OrderPaid;
 use App\Jobs\ProvisionServiceJob;
 use App\Models\OrderItem;
+use App\Models\ServiceProvider;
 use App\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -30,8 +31,16 @@ final class QueuePaidOrderProvisioning implements ShouldQueue
     {
         $order = $event->order->fresh(['items']);
         if (! $order || $order->status->value !== 'paid') return;
-        $user = User::query()->findOrFail($order->user_id);
 
+        // Payment must not fail merely because provisioning is not configured yet.
+        // A later provisioning workflow can pick the paid order up once a provider/account exists.
+        $providerReady = ServiceProvider::query()
+            ->where('status', 'active')
+            ->whereHas('accounts', fn ($query) => $query->where('status', 'active'))
+            ->exists();
+        if (! $providerReady) return;
+
+        $user = User::query()->findOrFail($order->user_id);
         foreach ($order->items as $item) {
             for ($index = 1; $index <= $item->quantity; $index++) {
                 $exists = DB::table('services')
