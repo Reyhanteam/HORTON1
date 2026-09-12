@@ -324,7 +324,10 @@ return new class extends Migration
             $table->unsignedInteger('priority')->default(0);
             $table->json('metadata')->nullable();
             $table->timestamps();
-            $table->index(['service_provider_id', 'status', 'priority']);
+            $table->index(
+                ['service_provider_id', 'status', 'priority'],
+                'spa_provider_status_priority_idx'
+            );
         });
 
         Schema::create('services', function (Blueprint $table) {
