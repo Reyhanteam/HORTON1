@@ -2,12 +2,10 @@
 
 declare(strict_types=1);
 
-use App\Services\Registration\RegistrationService;
 use App\Telegram\Controllers\RegistrationController;
 use App\Telegram\Conversations\RegistrationConversation;
 use ReyhanTeam\TelegramBotRouter\Facades\BOT;
 use ReyhanTeam\TelegramBotRouter\Facades\Route;
-use ReyhanTeam\TelegramBotRouter\Conversation\ConversationManager;
 
 /*
 |--------------------------------------------------------------------------
@@ -27,13 +25,3 @@ BOT::conversation(RegistrationConversation::name())
     ->register();
 
 Route::onCommand('start', [RegistrationController::class, 'start']);
-
-// Explicit callback routes ensure the registration conversation receives its
-// acceptance decisions through the package router.
-Route::onCallbackQuery(RegistrationService::ACCEPT, function ($update) {
-    return app(ConversationManager::class)->handle($update);
-});
-
-Route::onCallbackQuery(RegistrationService::DECLINE, function ($update) {
-    return app(ConversationManager::class)->handle($update);
-});
