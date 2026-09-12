@@ -48,7 +48,7 @@ class User extends Authenticatable
 
     public function isActive(): bool
     {
-        return $this->status === UserStatus::Active->value;
+        return $this->status === UserStatus::Active;
     }
 
     protected function casts(): array
