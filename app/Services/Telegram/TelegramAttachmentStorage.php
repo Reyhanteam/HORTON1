@@ -41,7 +41,7 @@ final class TelegramAttachmentStorage
             }
 
             $remoteSize = data_get($file, 'file_size');
-            $maxBytes = max(1, (int) config('telegram-files.max_download_bytes', 20 * 1024 * 1024));
+            $maxBytes = max(1, (int) config('telegram-bot-router.files.max_download_bytes', 20 * 1024 * 1024));
             if (is_numeric($remoteSize) && (int) $remoteSize > $maxBytes) {
                 throw new RuntimeException('Telegram attachment exceeds the configured download size limit.');
             }
@@ -51,7 +51,7 @@ final class TelegramAttachmentStorage
             $directory = 'telegram/support/'.$this->departmentSlug($departmentSlug).'/'.now()->format('Y/m');
             $filename = (string) Str::uuid().($extension !== '' ? '.'.$extension : '');
             $relativePath = $directory.'/'.$filename;
-            $disk = (string) config('telegram-files.disk', 'public');
+            $disk = (string) config('telegram-bot-router.files.disk', 'public');
 
             $temporaryPath = tempnam(sys_get_temp_dir(), 'horton-telegram-');
             if ($temporaryPath === false) {
@@ -104,11 +104,11 @@ final class TelegramAttachmentStorage
 
     private function http(): PendingRequest
     {
-        return Http::timeout(max(5, (int) config('telegram-files.timeout', 60)))
-            ->connectTimeout(max(5, (int) config('telegram-files.connect_timeout', 10)))
+        return Http::timeout(max(5, (int) config('telegram-bot-router.files.timeout', 60)))
+            ->connectTimeout(max(5, (int) config('telegram-bot-router.files.connect_timeout', 10)))
             ->retry(
-                max(0, (int) config('telegram-files.retries', 2)),
-                max(100, (int) config('telegram-files.retry_sleep_ms', 500)),
+                max(0, (int) config('telegram-bot-router.files.retries', 2)),
+                max(100, (int) config('telegram-bot-router.files.retry_sleep_ms', 500)),
                 throw: false,
             );
     }
