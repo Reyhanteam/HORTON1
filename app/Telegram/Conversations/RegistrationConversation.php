@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Telegram\Conversations;
 
+use App\Enums\Feature;
 use App\Telegram\Controllers\RegistrationController;
 
 final class RegistrationConversation
@@ -17,7 +18,11 @@ final class RegistrationConversation
     {
         return [
             [RegistrationController::class, 'acceptance'],
-            [RegistrationController::class, 'phone'],
+            FeatureStep::guarded(
+                Feature::PhoneVerification->value,
+                [RegistrationController::class, 'phone'],
+                true,
+            ),
         ];
     }
 }
