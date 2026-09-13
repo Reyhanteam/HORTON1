@@ -1,7 +1,50 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import '@fontsource/vazirmatn/400.css';
+@import '@fontsource/vazirmatn/500.css';
+@import '@fontsource/vazirmatn/600.css';
+@import '@fontsource/vazirmatn/700.css';
+@import 'tailwindcss';
 
-[x-cloak] {
-    display: none;
+@source '../../resources/views/**/*.blade.php';
+@source '../../app/View/Components/**/*.php';
+
+@theme {
+    --font-sans: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif;
+    --color-ink: #11233f;
+    --color-ink-soft: #53627a;
+    --color-brand: #1d4ed8;
+    --color-brand-dark: #173b9b;
+    --color-surface: #f4f7fb;
+    --color-line: #e3e9f2;
+    --color-success: #15803d;
+    --color-warning: #c47d12;
+    --color-danger: #c2414c;
 }
+
+@layer base {
+    :root { font-family: 'Vazirmatn', sans-serif; color: #11233f; background: #f4f7fb; }
+    html { direction: rtl; scroll-behavior: smooth; }
+    body { min-width: 320px; }
+    button, a, input, select, textarea { transition: color .2s ease, background-color .2s ease, border-color .2s ease, box-shadow .2s ease, transform .2s ease, opacity .2s ease; }
+    :focus-visible { outline: 3px solid rgb(29 78 216 / .25); outline-offset: 2px; }
+}
+
+@layer components {
+    .app-shell { background: radial-gradient(circle at 90% 0%, rgb(219 231 255 / .58), transparent 30rem), #f4f7fb; }
+    .glass-card { border: 1px solid rgb(227 233 242 / .9); background: rgb(255 255 255 / .86); box-shadow: 0 14px 35px rgb(25 53 93 / .06); backdrop-filter: blur(14px); }
+    .nav-item { color: #94a3b8; }
+    .nav-item:hover { color: #e2e8f0; background: rgb(255 255 255 / .08); }
+    .nav-item.active { color: #93c5fd; background: rgb(29 78 216 / .25); }
+    .nav-item.disabled { color: #64748b; cursor: default; opacity: .7; }
+    .page-enter { animation: page-enter .55s cubic-bezier(.2,.8,.2,1) both; }
+    .stagger > * { animation: page-enter .55s cubic-bezier(.2,.8,.2,1) both; }
+    .stagger > *:nth-child(2) { animation-delay: .06s; }
+    .stagger > *:nth-child(3) { animation-delay: .12s; }
+    .stagger > *:nth-child(4) { animation-delay: .18s; }
+}
+
+@keyframes page-enter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
+}
+
+[x-cloak] { display: none !important; }
