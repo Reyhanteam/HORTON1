@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Admin;
 
+use App\Models\AdminUser;
 use App\Models\AuditLog;
 use App\Models\Order;
 use App\Models\Payment;
@@ -78,7 +79,7 @@ final class UserController
     private function audit(string $action, User $user, array $oldValues, array $newValues): void
     {
         AuditLog::query()->create([
-            'admin_user_id' => auth('admin')->id(),
+            'admin_user_id' => AdminUser::query()->where('email', auth()->user()->email)->value('id'),
             'action' => $action,
             'subject_type' => User::class,
             'subject_id' => $user->id,
