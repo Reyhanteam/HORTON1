@@ -24,16 +24,18 @@ class DatabaseSeeder extends Seeder
             ['name' => 'Test User', 'password' => 'password']
         );
 
-        foreach ([
+        $permissions = [
             'users.view', 'users.manage',
             'wallet.view', 'wallet.credit', 'wallet.debit', 'wallet.manage',
             'support.departments.view', 'support.departments.manage',
             'support.content.view', 'support.content.manage',
             'support.tickets.view', 'support.tickets.reply', 'support.tickets.manage',
-        ] as $slug) {
+        ];
+
+        foreach ($permissions as $slug) {
             Permission::query()->firstOrCreate(
                 ['slug' => $slug],
-                ['name' => $slug, 'description' => 'HORTON admin permission: '.$slug],
+                ['name' => $slug, 'description' => 'HORTON dashboard permission: '.$slug],
             );
         }
 
@@ -42,22 +44,26 @@ class DatabaseSeeder extends Seeder
             ['name' => 'Support & User Manager', 'description' => 'Manage users, wallets and support.'],
         );
 
-        $role->permissions()->syncWithoutDetaching(Permission::query()->whereIn('slug', [
-            'users.view', 'users.manage',
-            'wallet.view', 'wallet.credit', 'wallet.debit', 'wallet.manage',
-            'support.departments.view', 'support.departments.manage',
-            'support.content.view', 'support.content.manage',
-            'support.tickets.view', 'support.tickets.reply', 'support.tickets.manage',
-        ])->pluck('id'));
+        $role->permissions()->syncWithoutDetaching(
+            Permission::query()->whereIn('slug', $permissions)->pluck('id')
+        );
 
         $adminEmail = env('HORTON_ADMIN_EMAIL');
-        $adminPassword = env('HORTON_ADMIN_PASSWORD');
-        if ($adminEmail && $adminPassword) {
-            $admin = AdminUser::query()->updateOrCreate(
-                ['email' => $adminEmail],
-                ['name' => env('HORTON_ADMIN_NAME', 'HORTON Admin'), 'password' => Hash::make($adminPassword), 'status' => 'active'],
-            );
-            $admin->roles()->syncWithoutDetaching([$role->id]);
+        if ($adminEmail) {
+            $user = User::query()->where('email', $adminEmail)->first();
+
+            if ($user) {
+                $admin = AdminUser::query()->updateOrCreate(
+                    ['email' => $user->email],
+                    [
+                        'name' => $user->name,
+                        'password' => Hash::make(bin2hex(random_bytes(32))),
+                        'status' => $user->status,
+                    ],
+                );
+
+                $admin->roles()->syncWithoutDetaching([$role->id]);
+            }
         }
 
         BotSetting::query()->updateOrCreate(
