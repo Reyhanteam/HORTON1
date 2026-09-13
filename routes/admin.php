@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\BroadcastController;
 use App\Http\Controllers\Admin\NotificationController;
 use App\Http\Controllers\Admin\SupportController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\UserPageController;
 use App\Http\Controllers\Admin\WalletController;
 use App\Http\Middleware\RequireAdminPermission;
 use Illuminate\Support\Facades\Route;
@@ -13,89 +14,30 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::view('/dashboard', 'admin.dashboard')->name('admin.dashboard');
 
-    Route::get('/users', [UserController::class, 'index'])
-        ->middleware(RequireAdminPermission::class.':users.view')
-        ->name('admin.users.index');
+    Route::get('/users', [UserPageController::class, 'index'])->middleware(RequireAdminPermission::class.':users.view')->name('admin.users.index');
+    Route::get('/users/{user}', [UserPageController::class, 'show'])->middleware(RequireAdminPermission::class.':users.view')->name('admin.users.show');
+    Route::put('/users/{user}', [UserController::class, 'update'])->middleware(RequireAdminPermission::class.':users.manage')->name('admin.users.update');
+    Route::patch('/users/{user}/status', [UserController::class, 'status'])->middleware(RequireAdminPermission::class.':users.manage')->name('admin.users.status');
 
-    Route::get('/users/{user}', [UserController::class, 'show'])
-        ->middleware(RequireAdminPermission::class.':users.view')
-        ->name('admin.users.show');
+    Route::get('/users/{user}/wallet', [UserPageController::class, 'wallet'])->middleware(RequireAdminPermission::class.':users.view')->name('admin.users.wallet');
+    Route::get('/users/{user}/wallet/transactions', [UserPageController::class, 'walletTransactions'])->middleware(RequireAdminPermission::class.':wallet.view')->name('admin.wallet.transactions');
+    Route::post('/users/{user}/wallet/credit', [WalletController::class, 'credit'])->middleware(RequireAdminPermission::class.':wallet.credit')->name('admin.wallet.credit');
+    Route::post('/users/{user}/wallet/debit', [WalletController::class, 'debit'])->middleware(RequireAdminPermission::class.':wallet.debit')->name('admin.wallet.debit');
+    Route::patch('/users/{user}/wallet/status', [WalletController::class, 'status'])->middleware(RequireAdminPermission::class.':wallet.manage')->name('admin.wallet.status');
 
-    Route::put('/users/{user}', [UserController::class, 'update'])
-        ->middleware(RequireAdminPermission::class.':users.manage')
-        ->name('admin.users.update');
-
-    Route::patch('/users/{user}/status', [UserController::class, 'status'])
-        ->middleware(RequireAdminPermission::class.':users.manage')
-        ->name('admin.users.status');
-
-    Route::get('/users/{user}/wallet', [UserController::class, 'wallet'])
-        ->middleware(RequireAdminPermission::class.':users.view')
-        ->name('admin.users.wallet');
-
-    Route::get('/users/{user}/orders', [UserController::class, 'orders'])
-        ->middleware(RequireAdminPermission::class.':users.view')
-        ->name('admin.users.orders');
-
-    Route::get('/users/{user}/payments', [UserController::class, 'payments'])
-        ->middleware(RequireAdminPermission::class.':users.view')
-        ->name('admin.users.payments');
-
-    Route::get('/users/{user}/services', [UserController::class, 'services'])
-        ->middleware(RequireAdminPermission::class.':users.view')
-        ->name('admin.users.services');
-
-    Route::get('/users/{user}/transactions', [UserController::class, 'transactions'])
-        ->middleware(RequireAdminPermission::class.':users.view')
-        ->name('admin.users.transactions');
-
-    Route::get('/users/{user}/referrals', [UserController::class, 'referrals'])
-        ->middleware(RequireAdminPermission::class.':users.view')
-        ->name('admin.users.referrals');
-
-    Route::get('/users/{user}/cashback', [UserController::class, 'cashback'])
-        ->middleware(RequireAdminPermission::class.':users.view')
-        ->name('admin.users.cashback');
-
-    Route::get('/users/{user}/discounts', [UserController::class, 'discounts'])
-        ->middleware(RequireAdminPermission::class.':users.view')
-        ->name('admin.users.discounts');
-
-    Route::get('/users/{user}/gifts', [UserController::class, 'gifts'])
-        ->middleware(RequireAdminPermission::class.':users.view')
-        ->name('admin.users.gifts');
-
-    Route::get('/users/{user}/support', [UserController::class, 'support'])
-        ->middleware(RequireAdminPermission::class.':users.view')
-        ->name('admin.users.support');
-
-    Route::get('/users/{user}/notifications', [UserController::class, 'notifications'])
-        ->middleware(RequireAdminPermission::class.':users.view')
-        ->name('admin.users.notifications');
-
-    Route::get('/users/{user}/activity', [UserController::class, 'activity'])
-        ->middleware(RequireAdminPermission::class.':users.view')
-        ->name('admin.users.activity');
-
-    Route::post('/users/{user}/notes', [UserController::class, 'note'])
-        ->middleware(RequireAdminPermission::class.':users.manage')
-        ->name('admin.users.notes.store');
-
-    Route::get('/users/{user}/wallet/transactions', [WalletController::class, 'transactions'])
-        ->middleware(RequireAdminPermission::class.':wallet.view')
-        ->name('admin.wallet.transactions');
-
-    Route::post('/users/{user}/wallet/credit', [WalletController::class, 'credit'])
-        ->middleware(RequireAdminPermission::class.':wallet.credit')
-        ->name('admin.wallet.credit');
-
-    Route::post('/users/{user}/wallet/debit', [WalletController::class, 'debit'])
-        ->middleware(RequireAdminPermission::class.':wallet.debit')
-        ->name('admin.wallet.debit');
-
-    Route::patch('/users/{user}/wallet/status', [WalletController::class, 'status'])
-        ->middleware(RequireAdminPermission::class.':wallet.manage')
-        ->name('admin.wallet.status');
+    Route::get('/users/{user}/telegram', [UserPageController::class, 'telegram'])->middleware(RequireAdminPermission::class.':users.view')->name('admin.users.telegram');
+    Route::get('/users/{user}/orders', [UserPageController::class, 'orders'])->middleware(RequireAdminPermission::class.':users.view')->name('admin.users.orders');
+    Route::get('/users/{user}/payments', [UserPageController::class, 'payments'])->middleware(RequireAdminPermission::class.':users.view')->name('admin.users.payments');
+    Route::get('/users/{user}/services', [UserPageController::class, 'services'])->middleware(RequireAdminPermission::class.':users.view')->name('admin.users.services');
+    Route::get('/users/{user}/transactions', [UserPageController::class, 'transactions'])->middleware(RequireAdminPermission::class.':users.view')->name('admin.users.transactions');
+    Route::get('/users/{user}/referrals', [UserPageController::class, 'referrals'])->middleware(RequireAdminPermission::class.':users.view')->name('admin.users.referrals');
+    Route::get('/users/{user}/cashback', [UserPageController::class, 'cashback'])->middleware(RequireAdminPermission::class.':users.view')->name('admin.users.cashback');
+    Route::get('/users/{user}/discounts', [UserPageController::class, 'discounts'])->middleware(RequireAdminPermission::class.':users.view')->name('admin.users.discounts');
+    Route::get('/users/{user}/gifts', [UserPageController::class, 'gifts'])->middleware(RequireAdminPermission::class.':users.view')->name('admin.users.gifts');
+    Route::get('/users/{user}/support', [UserPageController::class, 'support'])->middleware(RequireAdminPermission::class.':users.view')->name('admin.users.support');
+    Route::get('/users/{user}/notifications', [UserPageController::class, 'notifications'])->middleware(RequireAdminPermission::class.':users.view')->name('admin.users.notifications');
+    Route::get('/users/{user}/activity', [UserPageController::class, 'activity'])->middleware(RequireAdminPermission::class.':users.view')->name('admin.users.activity');
+    Route::post('/users/{user}/notes', [UserController::class, 'note'])->middleware(RequireAdminPermission::class.':users.manage')->name('admin.users.notes.store');
 
     Route::get('/notifications', [NotificationController::class, 'index'])->middleware(RequireAdminPermission::class.':notifications.view')->name('admin.notifications.index');
     Route::get('/notifications/{notification}', [NotificationController::class, 'show'])->middleware(RequireAdminPermission::class.':notifications.view')->name('admin.notifications.show');
