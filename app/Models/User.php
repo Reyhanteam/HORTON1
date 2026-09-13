@@ -6,7 +6,6 @@ namespace App\Models;
 
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -49,15 +48,11 @@ class User extends Authenticatable
         ];
     }
 
-    public function roles(): BelongsToMany
-    {
-        return $this->belongsToMany(Role::class, 'user_role');
-    }
-
     public function hasPermission(string $permission): bool
     {
-        return $this->roles()
+        return Role::query()
             ->whereHas('permissions', fn ($query) => $query->where('slug', $permission))
+            ->whereHas('admins', fn ($query) => $query->where('email', $this->email))
             ->exists();
     }
 
