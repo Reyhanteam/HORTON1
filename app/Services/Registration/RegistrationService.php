@@ -128,7 +128,7 @@ final class RegistrationService
         $phone = $this->validatedContactPhone($update);
 
         try {
-            return $this->db->transaction(function () use ($user, $phone, $update): User {
+            return $this->db->transaction(function () use ($user, $phone): User {
                 $existing = User::query()
                     ->where('phone', $phone)
                     ->where($user->getKeyName(), '!=', $user->getKey())
