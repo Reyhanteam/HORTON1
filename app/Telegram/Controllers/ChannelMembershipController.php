@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Telegram\Controllers;
 
+use App\Contracts\BotMessageStore;
 use App\Contracts\ChannelMembershipService;
-use App\Contracts\SettingsStore;
 use App\DTOs\ChannelMembershipResult;
 use App\Models\BotChannel;
 use ReyhanTeam\TelegramBotRouter\Facades\BOT;
@@ -18,7 +18,7 @@ final class ChannelMembershipController
 
     public function __construct(
         private readonly ChannelMembershipService $membership,
-        private readonly SettingsStore $settings,
+        private readonly BotMessageStore $messages,
     ) {}
 
     public function recheck(TelegramUpdate $update): mixed
@@ -39,7 +39,7 @@ final class ChannelMembershipController
                 $update->chatId(),
                 $this->message('membership.unavailable'),
                 replyMarkup: Keyboard::inline()
-                    ->callbackButton($this->message('membership.recheck'), self::RECHECK)
+                    ->callbackButton($this->button('membership.recheck'), self::RECHECK)
                     ->toArray(),
             );
         }
@@ -54,7 +54,7 @@ final class ChannelMembershipController
             }
         }
 
-        $keyboard->callbackButton($this->message('membership.recheck'), self::RECHECK);
+        $keyboard->callbackButton($this->button('membership.recheck'), self::RECHECK);
 
         return BOT::sendMessage(
             $update->chatId(),
@@ -65,7 +65,12 @@ final class ChannelMembershipController
 
     private function message(string $key): string
     {
-        return (string) $this->settings->get('messages.' . $key, $key);
+        return $this->messages->get($key, default: $key) ?? $key;
+    }
+
+    private function button(string $key): string
+    {
+        return $this->messages->get($key, default: $key) ?? $key;
     }
 
     private function channelUrl(BotChannel $channel): ?string
