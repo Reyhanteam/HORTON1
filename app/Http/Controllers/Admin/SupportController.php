@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin;
 
 use App\Jobs\SendSupportReplyJob;
+use App\Models\AdminUser;
 use App\Models\SupportContent;
 use App\Models\SupportDepartment;
 use App\Models\SupportTicket;
@@ -126,7 +127,7 @@ final class SupportController
             'attachments.*.url' => ['nullable', 'url', 'max:4096'],
         ])->validate();
 
-        $adminId = (int) auth('admin')->id();
+        $adminId = (int) AdminUser::query()->where('email', auth()->user()->email)->value('id');
         $message = $service->addAdminReply($ticket, $adminId, $data['message'] ?? null, $data['attachments'] ?? []);
         SendSupportReplyJob::dispatch($message->id);
 
