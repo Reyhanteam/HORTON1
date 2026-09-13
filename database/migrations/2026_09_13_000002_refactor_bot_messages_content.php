@@ -15,7 +15,6 @@ return new class extends Migration
             $table->string('type', 32)->default('message')->after('text');
             $table->string('button_type', 32)->nullable()->after('type');
             $table->string('description')->nullable()->after('button_type');
-            $table->unique(['key', 'locale'], 'bot_messages_key_locale_unique');
         });
 
         $legacyMessages = DB::table('bot_settings')
@@ -76,7 +75,6 @@ return new class extends Migration
         }
 
         Schema::table('bot_messages', function (Blueprint $table): void {
-            $table->dropUnique('bot_messages_key_locale_unique');
             $table->dropColumn(['type', 'button_type', 'description']);
         });
     }
