@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Contracts\AdminAuthenticator;
 use App\Contracts\CashbackService;
 use App\Contracts\CatalogService;
+use App\Contracts\ChannelMembershipService;
 use App\Contracts\CheckoutService;
 use App\Contracts\DiscountService;
 use App\Contracts\FeatureManager;
@@ -44,6 +45,7 @@ use App\Services\ServiceProvider\FakeServiceProvider;
 use App\Services\Settings\DatabaseSettingsStore;
 use App\Services\Settings\FeatureManager as DatabaseFeatureManager;
 use App\Services\Support\DatabaseSupportService;
+use App\Services\Telegram\DatabaseChannelMembershipService;
 use App\Services\Wallet\DatabaseWalletLedger;
 use App\Services\Wallet\DatabaseWalletService;
 use Illuminate\Support\ServiceProvider;
@@ -54,6 +56,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->singleton(SettingsStore::class, DatabaseSettingsStore::class);
         $this->app->singleton(FeatureManager::class, DatabaseFeatureManager::class);
+        $this->app->singleton(ChannelMembershipService::class, DatabaseChannelMembershipService::class);
         $this->app->singleton(AdminAuthenticator::class, LaravelAdminAuthenticator::class);
         $this->app->singleton(UserLifecycle::class, UserLifecycleService::class);
         $this->app->singleton(UserAccessChecker::class, UserAccessService::class);
