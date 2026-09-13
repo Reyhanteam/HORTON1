@@ -36,7 +36,7 @@ final class SupportController
     {
         return $this->responder->respond(
             $update,
-            $this->message('support.faq_gate'),
+            $this->botMessage('support.faq_gate'),
             Keyboard::inline()
                 ->callbackButton($this->button('support.faq_not_read'), self::FAQ)
                 ->callbackButton($this->button('support.faq_read'), self::FAQ_ACCEPTED)
@@ -48,8 +48,8 @@ final class SupportController
     {
         $contents = $this->support->faq();
         $text = $contents->isEmpty()
-            ? $this->message('support.faq_empty')
-            : collect([$this->message('support.faq_title')])
+            ? $this->botMessage('support.faq_empty')
+            : collect([$this->botMessage('support.faq_title')])
                 ->merge($contents->map(fn ($item): string => "\n<b>{$item->title}</b>\n{$item->body}"))
                 ->implode("\n");
 
@@ -67,7 +67,7 @@ final class SupportController
     {
         $departments = $this->support->departments();
         if ($departments->isEmpty()) {
-            return $this->responder->respond($update, $this->message('support.no_departments'));
+            return $this->responder->respond($update, $this->botMessage('support.no_departments'));
         }
 
         $this->conversations->start(
@@ -82,7 +82,7 @@ final class SupportController
 
         return $this->responder->respond(
             $update,
-            $this->message('support.choose_department'),
+            $this->botMessage('support.choose_department'),
             $this->departmentKeyboard(),
         );
     }
@@ -101,7 +101,7 @@ final class SupportController
 
         $this->responder->respond(
             $update,
-            $this->message('support.choose_sensitivity'),
+            $this->botMessage('support.choose_sensitivity'),
             Keyboard::inline()
                 ->callbackButton($this->button('support.sensitivity_low'), self::SENSITIVITY_PREFIX.'low')
                 ->callbackButton($this->button('support.sensitivity_normal'), self::SENSITIVITY_PREFIX.'normal')
@@ -124,7 +124,7 @@ final class SupportController
             throw new \InvalidArgumentException('Invalid support sensitivity selection.');
         }
 
-        $this->responder->respond($update, $this->message('support.write_message'));
+        $this->responder->respond($update, $this->botMessage('support.write_message'));
         return ['data' => [...$data, 'sensitivity' => $sensitivity]];
     }
 
@@ -154,7 +154,7 @@ final class SupportController
         $user = $this->registration->userForUpdate($update);
         $tickets = SupportTicket::query()->where('user_id', $user->id)->latest('id')->limit(10)->get();
         $text = $tickets->isEmpty()
-            ? $this->message('support.no_tickets')
+            ? $this->botMessage('support.no_tickets')
             : $this->render('support.ticket_list', ['{tickets}' => $tickets->map(fn ($ticket) => "#{$ticket->id} — {$ticket->status}")->implode("\n")]);
 
         return $this->responder->respond($update, $text, Keyboard::inline()->callbackButton($this->button('menu.back_button'), 'menu:home')->toArray());
@@ -194,7 +194,7 @@ final class SupportController
         return ['text' => is_string($text) ? trim($text) : null, 'attachments' => $attachments];
     }
 
-    private function message(string $key): string
+    private function botMessage(string $key): string
     {
         $value = $this->messages->get($key, type: 'message');
         if ($value === null) throw new \LogicException("Missing bot message: {$key}");
@@ -210,6 +210,6 @@ final class SupportController
 
     private function render(string $key, array $replace): string
     {
-        return strtr($this->message($key), array_map(static fn ($value): string => (string) $value, $replace));
+        return strtr($this->botMessage($key), array_map(static fn ($value): string => (string) $value, $replace));
     }
 }
