@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Middleware;
 
 use Closure;
@@ -10,9 +12,9 @@ final class RequireAdminPermission
 {
     public function handle(Request $request, Closure $next, string $permission): Response
     {
-        $admin = auth('admin')->user();
+        $user = $request->user();
 
-        if (! $admin || ! $admin->hasPermission($permission)) {
+        if (! $user || ! $user->hasPermission($permission)) {
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
