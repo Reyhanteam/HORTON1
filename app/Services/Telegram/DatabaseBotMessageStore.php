@@ -9,26 +9,22 @@ use App\Models\BotMessage;
 
 final class DatabaseBotMessageStore implements BotMessageStore
 {
-    public function get(string $key, ?string $locale = null, ?string $default = null): ?string
-    {
+    public function get(
+        string $key,
+        ?string $locale = null,
+        ?string $default = null,
+        ?string $type = null,
+    ): ?string {
         $locale ??= (string) config('app.locale', 'fa');
 
-        $message = BotMessage::query()
-            ->active()
-            ->where('key', $key)
-            ->where('locale', $locale)
-            ->value('text');
+        $message = $this->query($key, $locale, $type)->value('text');
 
         if ($message !== null) {
             return (string) $message;
         }
 
         if ($locale !== 'fa') {
-            $message = BotMessage::query()
-                ->active()
-                ->where('key', $key)
-                ->where('locale', 'fa')
-                ->value('text');
+            $message = $this->query($key, 'fa', $type)->value('text');
 
             if ($message !== null) {
                 return (string) $message;
@@ -36,5 +32,14 @@ final class DatabaseBotMessageStore implements BotMessageStore
         }
 
         return $default;
+    }
+
+    private function query(string $key, string $locale, ?string $type)
+    {
+        return BotMessage::query()
+            ->active()
+            ->where('key', $key)
+            ->where('locale', $locale)
+            ->when($type !== null, fn ($query) => $query->where('type', $type));
     }
 }
