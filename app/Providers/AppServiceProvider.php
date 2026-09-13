@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Providers;
 
 use App\Contracts\AdminAuthenticator;
@@ -12,6 +14,7 @@ use App\Contracts\DiscountService;
 use App\Contracts\FeatureManager;
 use App\Contracts\GiftCodeService;
 use App\Contracts\InvoiceService;
+use App\Contracts\NotificationDispatcher;
 use App\Contracts\NotificationService;
 use App\Contracts\OrderService;
 use App\Contracts\OrderStateMachine;
@@ -26,6 +29,21 @@ use App\Contracts\UserAccessChecker;
 use App\Contracts\UserLifecycle;
 use App\Contracts\WalletLedger;
 use App\Contracts\WalletService;
+use App\Events\UserRegistered;
+use App\Listeners\SendRegistrationNotification;
+use App\Models\CashbackTransaction;
+use App\Models\DiscountUsage;
+use App\Models\GiftCodeRedemption;
+use App\Models\Order;
+use App\Models\Payment;
+use App\Models\Referral;
+use App\Models\Service;
+use App\Models\ServiceOperation;
+use App\Models\SupportMessage;
+use App\Models\SupportTicket;
+use App\Models\User;
+use App\Models\WalletTransaction;
+use App\Observers\DomainNotificationObserver;
 use App\Services\Auth\LaravelAdminAuthenticator;
 use App\Services\Auth\UserAccessService;
 use App\Services\Auth\UserLifecycleService;
@@ -37,6 +55,7 @@ use App\Services\Marketing\DatabaseDiscountService;
 use App\Services\Marketing\DatabaseGiftCodeService;
 use App\Services\Marketing\DatabaseReferralService;
 use App\Services\Notifications\DatabaseNotificationService;
+use App\Services\Notifications\NotificationDispatcherService;
 use App\Services\Orders\DatabaseCheckoutService;
 use App\Services\Orders\DatabaseOrderService;
 use App\Services\Orders\DatabaseOrderStateMachine;
@@ -50,6 +69,7 @@ use App\Services\Telegram\DatabaseBotMessageStore;
 use App\Services\Telegram\DatabaseChannelMembershipService;
 use App\Services\Wallet\DatabaseWalletLedger;
 use App\Services\Wallet\DatabaseWalletService;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -78,7 +98,32 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(ServiceLifecycle::class, DatabaseServiceLifecycle::class);
         $this->app->singleton(ServiceProviderContract::class, FakeServiceProvider::class);
         $this->app->singleton(NotificationService::class, DatabaseNotificationService::class);
+        $this->app->singleton(NotificationDispatcher::class, NotificationDispatcherService::class);
         $this->app->singleton(SupportService::class, DatabaseSupportService::class);
         $this->app->singleton(PaymentGatewayContract::class, FakePaymentGateway::class);
+    }
+
+    public function boot(): void
+    {
+        $observer = DomainNotificationObserver::class;
+
+        foreach ([
+            User::class,
+            Order::class,
+            Payment::class,
+            WalletTransaction::class,
+            Service::class,
+            ServiceOperation::class,
+            DiscountUsage::class,
+            GiftCodeRedemption::class,
+            Referral::class,
+            CashbackTransaction::class,
+            SupportMessage::class,
+            SupportTicket::class,
+        ] as $model) {
+            $model::observe($observer);
+        }
+
+        Event::listen(UserRegistered::class, SendRegistrationNotification::class);
     }
 }
