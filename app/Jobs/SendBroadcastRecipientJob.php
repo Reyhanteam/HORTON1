@@ -31,7 +31,7 @@ final class SendBroadcastRecipientJob implements ShouldQueue, ShouldBeUnique
     public function __construct(public readonly int $broadcastId, public readonly int $userId)
     {
         $this->afterCommit = true;
-        $this->configureHortonQueue('broadcasts');
+        $this->configureHortonQueue((string) config('queue.horton.broadcast_queue', config('queue.horton.queue', 'default')));
         $this->uniqueFor = $this->hortonQueueUniqueFor();
     }
 
@@ -68,7 +68,7 @@ final class SendBroadcastRecipientJob implements ShouldQueue, ShouldBeUnique
 
         try {
             $this->send($broadcast, $user);
-            $recipient->forceFill(['status' => 'sent', 'sent_at' => now(), 'failed_at' => null])->save();
+            $recipient->forceFill(['status' => 'sent', 'sent_at' => now(), 'failed_at' => null, 'error_message' => null])->save();
             Broadcast::query()->whereKey($broadcast->id)->increment('sent_count');
             $this->maybeComplete($broadcast->id);
         } catch (Throwable $e) {
