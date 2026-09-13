@@ -73,7 +73,7 @@ final class RegistrationFlowTest extends TestCase
         self::assertSame(UserStatus::Active, $user->status);
         self::assertSame('+491234567890', $user->phone);
         self::assertNotNull($user->phone_verified_at);
-        $fake->assertMessageSent('Registration complete');
+        $fake->assertMessageSent('Registration complete for Test');
     }
 
     public function test_contact_from_another_telegram_user_is_rejected(): void
@@ -140,7 +140,7 @@ final class RegistrationFlowTest extends TestCase
         $response->assertOk();
         self::assertSame(UserStatus::Active, User::query()->sole()->status);
         self::assertNull(User::query()->sole()->phone);
-        $fake->assertMessageSent('Registration complete');
+        $fake->assertMessageSent('Registration complete for Test');
     }
 
     public function test_declining_rules_finishes_registration_without_activation(): void
@@ -172,7 +172,7 @@ final class RegistrationFlowTest extends TestCase
             'registration.phone_invalid' => 'Phone invalid',
             'registration.phone_owner_mismatch' => 'Phone owner mismatch',
             'registration.phone_taken' => 'Phone already used',
-            'registration.success' => 'Registration complete',
+            'registration.success' => 'Registration complete for {name}',
             'registration.cancelled' => 'Registration cancelled',
             'registration.already_active' => 'Already active',
             'registration.blocked' => 'Blocked',
