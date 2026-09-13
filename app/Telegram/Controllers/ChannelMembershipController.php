@@ -65,12 +65,12 @@ final class ChannelMembershipController
 
     private function message(string $key): string
     {
-        return $this->messages->get($key, default: $key) ?? $key;
+        return $this->messages->get($key, default: $key, type: 'message') ?? $key;
     }
 
     private function button(string $key): string
     {
-        return $this->messages->get($key, default: $key) ?? $key;
+        return $this->messages->get($key, default: $key, type: 'button') ?? $key;
     }
 
     private function channelUrl(BotChannel $channel): ?string
