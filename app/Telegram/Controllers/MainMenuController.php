@@ -8,6 +8,7 @@ use App\Contracts\BotMessageStore;
 use App\Contracts\WalletService;
 use App\Services\Registration\RegistrationService;
 use App\Services\Telegram\BotMessageResponder;
+use App\Models\User;
 use ReyhanTeam\TelegramBotRouter\Keyboard\Keyboard;
 use ReyhanTeam\TelegramBotRouter\TelegramUpdate;
 
@@ -22,6 +23,7 @@ final class MainMenuController
     public const REFERRAL = 'menu:referral';
     public const TUTORIALS = 'menu:tutorials';
     public const SUPPORT = 'menu:support';
+    public const REPRESENTATIVE = 'menu:representative';
 
     public function __construct(
         private readonly RegistrationService $registration,
@@ -34,11 +36,7 @@ final class MainMenuController
     {
         $user = $this->registration->userForUpdate($update);
 
-        return $this->responder->respond(
-            $update,
-            $this->text($user),
-            $this->keyboard(),
-        );
+        return $this->responder->respond($update, $this->text($user), $this->keyboard());
     }
 
     public function action(TelegramUpdate $update): mixed
@@ -53,7 +51,7 @@ final class MainMenuController
         );
     }
 
-    private function text(\App\Models\User $user): string
+    private function text(User $user): string
     {
         $account = $user->telegramAccount;
         $name = trim((string) ($user->name ?: trim(($account?->first_name ?? '') . ' ' . ($account?->last_name ?? ''))));
@@ -66,7 +64,7 @@ final class MainMenuController
             "🔹 نام کاربری: {$username}\n" .
             "📱 شماره تلفن: {$phone}\n" .
             "💰 موجودی کیف پول: {$balance}\n\n" .
-            "یکی از گزینه‌های زیر را انتخاب کنید:";
+            "از منوی زیر گزینه موردنظر را انتخاب کنید 👇";
     }
 
     private function keyboard(): array
@@ -77,11 +75,20 @@ final class MainMenuController
         ];
 
         return Keyboard::inline()
-            ->callbackButton($button('menu.renew', '🔄 تمدید سرویس', self::RENEW)['text'], self::RENEW)->callbackButton($button('menu.shop', '🛒 خرید اشتراک', self::SHOP)['text'], self::SHOP)->row()
-            ->callbackButton($button('menu.test_account', '🧪 اکانت تست', self::TEST_ACCOUNT)['text'], self::TEST_ACCOUNT)->callbackButton($button('menu.wallet', '💰 کیف پول + شارژ', self::WALLET)['text'], self::WALLET)->row()
-            ->callbackButton($button('menu.services', '📦 سرویس‌های من', self::SERVICES)['text'], self::SERVICES)->callbackButton($button('menu.plans', '💳 تعرفه اشتراک‌ها', self::PLANS)['text'], self::PLANS)->row()
-            ->callbackButton($button('menu.referral', '👥 زیرمجموعه‌گیری', self::REFERRAL)['text'], self::REFERRAL)->callbackButton($button('menu.tutorials', '🎓 آموزش', self::TUTORIALS)['text'], self::TUTORIALS)->row()
+            ->callbackButton($button('menu.renew', '🔄 تمدید سرویس', self::RENEW)['text'], self::RENEW)
+            ->callbackButton($button('menu.shop', '🛒 خرید اشتراک', self::SHOP)['text'], self::SHOP)
+            ->row()
+            ->callbackButton($button('menu.test_account', '🧪 اکانت تست', self::TEST_ACCOUNT)['text'], self::TEST_ACCOUNT)
+            ->callbackButton($button('menu.wallet', '💰 کیف پول + شارژ', self::WALLET)['text'], self::WALLET)
+            ->row()
+            ->callbackButton($button('menu.services', '📦 سرویس‌های من', self::SERVICES)['text'], self::SERVICES)
+            ->callbackButton($button('menu.plans', '💳 تعرفه اشتراک‌ها', self::PLANS)['text'], self::PLANS)
+            ->row()
+            ->callbackButton($button('menu.referral', '👥 زیرمجموعه‌گیری', self::REFERRAL)['text'], self::REFERRAL)
+            ->callbackButton($button('menu.tutorials', '🎓 آموزش', self::TUTORIALS)['text'], self::TUTORIALS)
+            ->row()
             ->callbackButton($button('menu.support', '🎧 پشتیبانی', self::SUPPORT)['text'], self::SUPPORT)
+            ->callbackButton($button('menu.representative', '🏪 پنل نمایندگی', self::REPRESENTATIVE)['text'], self::REPRESENTATIVE)
             ->toArray();
     }
 }
