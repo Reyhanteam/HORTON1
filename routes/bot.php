@@ -20,12 +20,12 @@ use ReyhanTeam\TelegramBotRouter\Facades\Route;
 
 Route::onCallback(ChannelMembershipController::RECHECK, [ChannelMembershipController::class, 'recheck']);
 
-Route::middleware([EnsureChannelMembership::class])
-    ->conversation(RegistrationConversation::name())
+Route::conversation(RegistrationConversation::name())
     ->step([RegistrationController::class, 'acceptance'])
     ->step([RegistrationController::class, 'phone'])
     ->ttl((int) config('telegram-bot-router.conversation.ttl', 3600))
     ->cancelOnCommand('cancel')
+    ->middleware([EnsureChannelMembership::class])
     ->register();
 
 Route::middleware([EnsureChannelMembership::class])
