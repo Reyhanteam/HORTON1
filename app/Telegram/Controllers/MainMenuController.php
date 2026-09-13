@@ -56,8 +56,9 @@ final class MainMenuController
     {
         $account = $user->telegramAccount;
         $name = trim((string) ($user->name ?: trim(($account?->first_name ?? '') . ' ' . ($account?->last_name ?? ''))));
-        $username = $account?->username ? '@' . ltrim((string) $account->username, '@') : $this->message('menu.no_username');
-        $phone = $user->phone ?: $this->message('menu.phone_not_registered');
+        $chatId = (string) ($account?->telegram_user_id ?? $user->getKey());
+        $username = $chatId;
+        $phone = $user->phone ?: 'ثبت نشده';
         $balance = number_format($this->wallets->balance($user, 'IRR')) . ' ' . $this->message('menu.currency_irr');
 
         return $this->render('menu.home', [
