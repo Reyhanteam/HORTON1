@@ -29,7 +29,7 @@ final class QueueBroadcastJob implements ShouldQueue, ShouldBeUnique
     public function __construct(public readonly int $broadcastId)
     {
         $this->afterCommit = true;
-        $this->configureHortonQueue('broadcasts');
+        $this->configureHortonQueue((string) config('queue.horton.broadcast_queue', config('queue.horton.queue', 'default')));
         $this->uniqueFor = $this->hortonQueueUniqueFor();
     }
 
