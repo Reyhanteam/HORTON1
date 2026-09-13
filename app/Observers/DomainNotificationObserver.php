@@ -30,14 +30,14 @@ final class DomainNotificationObserver
         if ($model instanceof Order) {
             $dispatcher->dispatch($model->user, NotificationType::ORDER_CREATED, [
                 'order_id' => $model->id,
-                'status' => (string) $model->status->value,
+                'status' => $model->status->value,
                 'amount' => (int) $model->total_amount,
                 'currency' => $model->currency,
             ], 'order:'.$model->id.':created');
             return;
         }
 
-        if ($model instanceof Payment && (string) $model->status->value === 'pending' && (string) $model->method === 'manual') {
+        if ($model instanceof Payment && $model->status->value === 'pending' && $model->method->value === 'manual') {
             $dispatcher->dispatch($model->user, NotificationType::PAYMENT_PENDING, [
                 'payment_id' => $model->id,
                 'order_id' => $model->order_id,
@@ -121,14 +121,14 @@ final class DomainNotificationObserver
 
             if ($model->wasChanged('status')) {
                 $dispatcher->dispatch($model, NotificationType::ACCOUNT_STATUS_CHANGED, [
-                    'status' => (string) $model->status->value,
+                    'status' => $model->status->value,
                 ], 'user:'.$model->id.':status:'.$model->status->value);
             }
             return;
         }
 
         if ($model instanceof Order && $model->wasChanged('status')) {
-            $type = match ((string) $model->status->value) {
+            $type = match ($model->status->value) {
                 'processing' => NotificationType::ORDER_PROCESSING,
                 'completed' => NotificationType::ORDER_COMPLETED,
                 'failed' => NotificationType::ORDER_FAILED,
@@ -146,9 +146,9 @@ final class DomainNotificationObserver
         }
 
         if ($model instanceof Payment && $model->wasChanged('status')) {
-            $status = (string) $model->status->value;
+            $status = $model->status->value;
             if ($status === 'success') {
-                $type = (string) $model->method === 'manual'
+                $type = $model->method->value === 'manual'
                     ? NotificationType::PAYMENT_MANUAL_APPROVED
                     : NotificationType::PAYMENT_SUCCESS;
                 $dispatcher->dispatch($model->user, $type, [
@@ -158,7 +158,7 @@ final class DomainNotificationObserver
                     'currency' => $model->currency,
                 ], 'payment:'.$model->id.':status:success');
             } elseif ($status === 'failed') {
-                $type = (string) $model->method === 'manual'
+                $type = $model->method->value === 'manual'
                     ? NotificationType::PAYMENT_MANUAL_REJECTED
                     : NotificationType::PAYMENT_FAILED;
                 $dispatcher->dispatch($model->user, $type, [
@@ -172,8 +172,9 @@ final class DomainNotificationObserver
         }
 
         if ($model instanceof Service && $model->wasChanged('status')) {
-            $from = (string) $model->getOriginal('status');
-            $to = (string) $model->status->value;
+            $from = $model->getOriginal('status');
+            $from = $from instanceof \BackedEnum ? $from->value : (string) $from;
+            $to = $model->status->value;
             $type = null;
             if ($from === 'pending' && $to === 'active') $type = NotificationType::SERVICE_CREATED;
             if ($from === 'disabled' && $to === 'active') $type = NotificationType::SERVICE_REACTIVATED;
