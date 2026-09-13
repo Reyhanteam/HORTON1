@@ -34,7 +34,10 @@ final class FeatureStep
                 ];
             }
 
-            return app()->call($action, [
+            [$controller, $method] = $action;
+            $instance = app()->make($controller);
+
+            return app()->call([$instance, $method], [
                 'update' => $update,
                 'input' => $input,
                 'data' => $data,
