@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Enums\ServiceStatus;
 use App\Models\BotMessage;
 use App\Models\Category;
 use App\Models\Plan;
@@ -13,12 +14,12 @@ use App\Models\ServiceProvider;
 use App\Models\ServiceProviderAccount;
 use App\Models\TelegramAccount;
 use App\Models\User;
-use App\Enums\ServiceStatus;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
-use Tests\TestCase;
+use Illuminate\Support\Facades\DB;
 use ReyhanTeam\TelegramBotRouter\Facades\BOT;
+use Tests\TestCase;
 
 final class NotificationSchedulerTest extends TestCase
 {
@@ -37,21 +38,9 @@ final class NotificationSchedulerTest extends TestCase
         $provider = ServiceProvider::query()->create(['name' => 'Fake', 'slug' => 'fake-expiry', 'driver' => 'fake', 'status' => 'active']);
         $account = ServiceProviderAccount::query()->create(['service_provider_id' => $provider->id, 'name' => 'Fake Account', 'status' => 'active', 'priority' => 1]);
 
-        $threeDay = Service::query()->create([
-            'uuid' => (string) \Illuminate\Support\Str::uuid(), 'user_id' => $user->id, 'plan_id' => $plan->id,
-            'service_provider_id' => $provider->id, 'provider_account_id' => $account->id, 'status' => ServiceStatus::ACTIVE,
-            'starts_at' => now(), 'expires_at' => Carbon::now()->addHours(48), 'capacity' => 10, 'used_capacity' => 0, 'is_trial' => false,
-        ]);
-        $twentyFourHour = Service::query()->create([
-            'uuid' => (string) \Illuminate\Support\Str::uuid(), 'user_id' => $user->id, 'plan_id' => $plan->id,
-            'service_provider_id' => $provider->id, 'provider_account_id' => $account->id, 'status' => ServiceStatus::ACTIVE,
-            'starts_at' => now(), 'expires_at' => Carbon::now()->addHours(20), 'capacity' => 10, 'used_capacity' => 0, 'is_trial' => false,
-        ]);
-        $expired = Service::query()->create([
-            'uuid' => (string) \Illuminate\Support\Str::uuid(), 'user_id' => $user->id, 'plan_id' => $plan->id,
-            'service_provider_id' => $provider->id, 'provider_account_id' => $account->id, 'status' => ServiceStatus::ACTIVE,
-            'starts_at' => now()->subDay(), 'expires_at' => Carbon::now()->subMinute(), 'capacity' => 10, 'used_capacity' => 0, 'is_trial' => false,
-        ]);
+        $threeDay = $this->service($user, $plan, $provider, $account, Carbon::now()->addHours(48));
+        $twentyFourHour = $this->service($user, $plan, $provider, $account, Carbon::now()->addHours(20));
+        $expired = $this->service($user, $plan, $provider, $account, Carbon::now()->subMinute());
 
         Artisan::call('horton:notifications:dispatch');
         Artisan::call('horton:notifications:dispatch');
@@ -60,7 +49,24 @@ final class NotificationSchedulerTest extends TestCase
         self::assertDatabaseHas('notifications', ['deduplication_key' => 'service:'.$threeDay->id.':service.expiring_3_days']);
         self::assertDatabaseHas('notifications', ['deduplication_key' => 'service:'.$twentyFourHour->id.':service.expiring_24_hours']);
         self::assertDatabaseHas('notifications', ['deduplication_key' => 'service:'.$expired->id.':expired']);
-        self::assertSame(3, \Illuminate\Database\Capsule\Manager::connection()->table('notifications')->count());
+        self::assertSame(3, DB::table('notifications')->count());
+    }
+
+    private function service(User $user, Plan $plan, ServiceProvider $provider, ServiceProviderAccount $account, Carbon $expiresAt): Service
+    {
+        return Service::query()->create([
+            'uuid' => (string) \Illuminate\Support\Str::uuid(),
+            'user_id' => $user->id,
+            'plan_id' => $plan->id,
+            'service_provider_id' => $provider->id,
+            'provider_account_id' => $account->id,
+            'status' => ServiceStatus::ACTIVE,
+            'starts_at' => now()->subDay(),
+            'expires_at' => $expiresAt,
+            'capacity' => 10,
+            'used_capacity' => 0,
+            'is_trial' => false,
+        ]);
     }
 
     private function plan(): Plan
