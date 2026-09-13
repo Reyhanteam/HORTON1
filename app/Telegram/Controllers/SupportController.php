@@ -11,9 +11,11 @@ use App\Services\Support\SupportTicketService;
 use App\Services\Telegram\BotMessageResponder;
 use App\Services\Telegram\TelegramAttachmentStorage;
 use App\Telegram\Conversations\SupportConversation;
+use Illuminate\Support\Facades\Log;
 use ReyhanTeam\TelegramBotRouter\Conversation\ConversationManager;
 use ReyhanTeam\TelegramBotRouter\Keyboard\Keyboard;
 use ReyhanTeam\TelegramBotRouter\TelegramUpdate;
+use Throwable;
 
 final class SupportController
 {
@@ -152,11 +154,32 @@ final class SupportController
             $storedAttachments,
         );
 
-        $this->responder->respond(
-            $update,
-            $this->render('support.created', ['{ticket_id}' => $ticket->id]),
-            Keyboard::inline()->callbackButton($this->button('menu.back_button'), 'menu:home')->toArray(),
-        );
+        $confirmation = $this->render('support.created', ['{ticket_id}' => $ticket->id]);
+        $replyMarkup = Keyboard::inline()
+            ->callbackButton($this->button('menu.back_button'), 'menu:home')
+            ->toArray();
+
+        try {
+            // Telegram media updates should receive a new confirmation message.
+            // The previous prompt is a text message and must not be treated as
+            // the only delivery target for a photo/video/document submission.
+            if ($storedAttachments !== []) {
+                $this->responder->sendNew($update->chatId(), $confirmation, $replyMarkup);
+            } else {
+                $this->responder->respond($update, $confirmation, $replyMarkup);
+            }
+        } catch (Throwable $exception) {
+            // Persistence is already complete. Never let a Telegram delivery
+            // failure prevent ConversationManager from seeing done=true.
+            Log::warning('Support ticket confirmation delivery failed.', [
+                'ticket_id' => $ticket->id,
+                'user_id' => $user->id,
+                'chat_id' => $update->chatId(),
+                'has_attachments' => $storedAttachments !== [],
+                'exception' => $exception::class,
+                'error' => $exception->getMessage(),
+            ]);
+        }
 
         return ['done' => true, 'data' => [...$data, 'ticket_id' => $ticket->id]];
     }
