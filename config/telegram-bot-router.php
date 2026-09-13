@@ -43,10 +43,6 @@ return [
         'deduplicate_updates' => (bool) env('TELEGRAM_QUEUE_DEDUPLICATE_UPDATES', true),
         'deduplication_ttl' => (int) env('TELEGRAM_QUEUE_DEDUPLICATION_TTL', 86400),
         'cache_store' => env('TELEGRAM_QUEUE_CACHE_STORE', null),
-
-        // Non-retryable exceptions take precedence over retryable exceptions.
-        // An empty retryable list means all exceptions are retryable unless
-        // they are explicitly listed as non-retryable.
         'retryable_exceptions' => [],
         'non_retryable_exceptions' => [
             ReyhanTeam\TelegramBotRouter\Exceptions\InvalidTelegramUpdateException::class,
@@ -84,19 +80,11 @@ return [
     ],
 
     'outgoing_rate_limit' => [
-        // Protect every outgoing Telegram Bot API request. Disabled by default
-        // to preserve existing package behavior until the application enables it.
         'enabled' => (bool) env('TELEGRAM_OUTGOING_RATE_LIMIT_ENABLED', false),
         'prefix' => env('TELEGRAM_OUTGOING_RATE_LIMIT_PREFIX', 'telegram_bot_router.outgoing_rate_limit'),
         'max_attempts' => (int) env('TELEGRAM_OUTGOING_RATE_LIMIT_MAX', 30),
         'decay_seconds' => (int) env('TELEGRAM_OUTGOING_RATE_LIMIT_DECAY', 1),
-
-        // Queue workers do not sleep while waiting for the outgoing limit.
-        // They receive a retryable exception and use Laravel queue backoff.
         'queue_aware' => (bool) env('TELEGRAM_OUTGOING_RATE_LIMIT_QUEUE_AWARE', true),
-
-        // Telegram 429 handling. retry_after takes precedence over the local
-        // backoff values. Local backoff is used when Telegram gives no delay.
         'retry_after' => [
             'enabled' => (bool) env('TELEGRAM_RETRY_AFTER_ENABLED', true),
             'max_retries' => (int) env('TELEGRAM_RETRY_AFTER_MAX_RETRIES', 3),
@@ -107,6 +95,15 @@ return [
     'exceptions' => [
         'handler' => ReyhanTeam\TelegramBotRouter\Exceptions\TelegramExceptionHandler::class,
         'log_level' => env('TELEGRAM_EXCEPTION_LOG_LEVEL', 'error'),
+    ],
+
+    'files' => [
+        'disk' => env('TELEGRAM_FILES_DISK', 'public'),
+        'max_download_bytes' => (int) env('TELEGRAM_FILES_MAX_DOWNLOAD_BYTES', 20 * 1024 * 1024),
+        'timeout' => (int) env('TELEGRAM_FILES_TIMEOUT', 60),
+        'connect_timeout' => (int) env('TELEGRAM_FILES_CONNECT_TIMEOUT', 10),
+        'retries' => (int) env('TELEGRAM_FILES_RETRIES', 2),
+        'retry_sleep_ms' => (int) env('TELEGRAM_FILES_RETRY_SLEEP_MS', 500),
     ],
 
 ];
