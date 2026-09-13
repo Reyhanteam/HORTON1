@@ -29,8 +29,7 @@ $applyRateLimits(Route::onCallback(MainMenuController::PLANS, [MainMenuControlle
 $applyRateLimits(Route::onCallback(MainMenuController::REFERRAL, [MainMenuController::class, 'action']));
 $applyRateLimits(Route::onCallback(MainMenuController::TUTORIALS, [MainMenuController::class, 'action']));
 $applyRateLimits(Route::onCallback(MainMenuController::REPRESENTATIVE, [MainMenuController::class, 'action']));
-
-$applyRateLimits(Route::onCallback(SupportController::ENTRY, [SupportController::class, 'entry']));
+$applyRateLimits(Route::onCallback(MainMenuController::SUPPORT, [SupportController::class, 'entry']));
 $applyRateLimits(Route::onCallback(SupportController::FAQ, [SupportController::class, 'faq']));
 $applyRateLimits(Route::onCallback(SupportController::FAQ_ACCEPTED, [SupportController::class, 'begin']));
 
