@@ -6,5 +6,10 @@ namespace App\Contracts;
 
 interface BotMessageStore
 {
-    public function get(string $key, ?string $locale = null, ?string $default = null): ?string;
+    public function get(
+        string $key,
+        ?string $locale = null,
+        ?string $default = null,
+        ?string $type = null,
+    ): ?string;
 }
