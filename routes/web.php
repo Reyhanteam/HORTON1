@@ -29,6 +29,7 @@ Route::middleware(['auth:sanctum', config('jetstream.auth_session'), 'verified']
 
     Route::prefix('wallet')->name('portal.wallet')->group(function (): void {
         Route::get('/', [UserPortalController::class, 'wallet'])->name('');
+        Route::get('/top-up', [UserPortalController::class, 'topUp'])->name('.topup');
         Route::get('/transactions', [UserPortalController::class, 'transactions'])->name('.transactions');
     });
 
@@ -38,6 +39,7 @@ Route::middleware(['auth:sanctum', config('jetstream.auth_session'), 'verified']
 
     Route::prefix('support')->name('portal.support')->group(function (): void {
         Route::get('/', [UserPortalController::class, 'support'])->name('');
+        Route::get('/new', [UserPortalController::class, 'createTicket'])->name('.create');
         Route::get('/tickets/{ticket}', [UserPortalController::class, 'ticket'])->name('.show');
         Route::get('/faq', [UserPortalController::class, 'faq'])->name('.faq');
         Route::get('/tutorials', [UserPortalController::class, 'tutorials'])->name('.tutorials');
