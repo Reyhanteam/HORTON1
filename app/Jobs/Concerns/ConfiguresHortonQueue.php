@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace App\Jobs\Concerns;
 
-use Illuminate\Contracts\Queue\ShouldQueue;
-
 trait ConfiguresHortonQueue
 {
     protected function configureHortonQueue(?string $queue = null): void
