@@ -19,6 +19,7 @@ final class ChannelMembershipController
     public function __construct(
         private readonly ChannelMembershipService $membership,
         private readonly BotMessageStore $messages,
+        private readonly RegistrationController $registration,
     ) {}
 
     public function recheck(TelegramUpdate $update): mixed
@@ -26,7 +27,10 @@ final class ChannelMembershipController
         $result = $this->membership->check($update);
 
         if ($result->allowed()) {
-            return BOT::sendMessage($update->chatId(), $this->message('membership.verified'));
+            // Membership verification is a gate, not an onboarding step.
+            // Continue directly with the registration conversation instead of
+            // showing a transient "membership verified" message.
+            return $this->registration->start($update);
         }
 
         return $this->sendRestriction($update, $result);
