@@ -5,23 +5,25 @@ declare(strict_types=1);
 namespace App\Services\Notifications;
 
 use App\Contracts\NotificationDispatcher;
+use App\Contracts\SettingsStore;
 use App\Enums\NotificationType;
+use App\Jobs\SendTelegramNotificationJob;
 use App\Models\Notification;
 use App\Models\User;
 use App\Services\Telegram\BotTextRenderer;
-use App\Jobs\SendTelegramNotificationJob;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Log;
 
 final class NotificationDispatcherService implements NotificationDispatcher
 {
-    public function __construct(private readonly BotTextRenderer $renderer) {}
+    public function __construct(
+        private readonly BotTextRenderer $renderer,
+        private readonly SettingsStore $settings,
+    ) {}
 
     public function dispatch(User $user, NotificationType|string $type, array $data = [], ?string $deduplicationKey = null): ?Notification
     {
-        if (! (bool) app(\App\Contracts\SettingsStore::class)->get('notifications.enabled', true)) {
-            return null;
-        }
+        if (! (bool) $this->settings->get('notifications.enabled', true)) return null;
 
         $type = $type instanceof NotificationType ? $type : NotificationType::from($type);
         $title = $this->renderer->render('notifications.'.$type->value.'.title', $user, $data);
@@ -31,10 +33,7 @@ final class NotificationDispatcherService implements NotificationDispatcher
             Log::warning('Notification template is missing; notification skipped.', [
                 'type' => $type->value,
                 'user_id' => $user->id,
-                'missing' => [
-                    'title' => $title === null,
-                    'body' => $body === null,
-                ],
+                'missing' => ['title' => $title === null, 'body' => $body === null],
             ]);
             return null;
         }
@@ -49,26 +48,17 @@ final class NotificationDispatcherService implements NotificationDispatcher
                 'deduplication_key' => $deduplicationKey,
             ]);
         } catch (QueryException $e) {
-            if ($deduplicationKey === null) {
-                throw $e;
-            }
-
+            if ($deduplicationKey === null) throw $e;
             $notification = Notification::query()->where('deduplication_key', $deduplicationKey)->first();
-            if (! $notification) {
-                throw $e;
-            }
+            if (! $notification) throw $e;
         }
 
-        $delivery = $notification->deliveries()->firstOrCreate([
-            'channel' => 'telegram',
-        ], [
-            'status' => 'pending',
-            'attempts' => 0,
-        ]);
+        $delivery = $notification->deliveries()->firstOrCreate(
+            ['channel' => 'telegram'],
+            ['status' => 'pending', 'attempts' => 0],
+        );
 
-        if ($delivery->sent_at === null) {
-            SendTelegramNotificationJob::dispatch($notification->id);
-        }
+        if ($delivery->sent_at === null) SendTelegramNotificationJob::dispatch($notification->id);
 
         return $notification->refresh();
     }
