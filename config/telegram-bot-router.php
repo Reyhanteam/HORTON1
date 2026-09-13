@@ -5,7 +5,9 @@ declare(strict_types=1);
 return [
 
     'token' => env('TELEGRAM_BOT_TOKEN', ''),
-    'mode' => env('TELEGRAM_BOT_MODE', 'webhook'),
+    // HORTON currently runs Telegram through long polling. Webhook support remains
+    // available in the package, but it is not the active application transport.
+    'mode' => env('TELEGRAM_BOT_MODE', 'polling'),
 
     'webhook' => [
         'path' => env('TELEGRAM_WEBHOOK_PATH', '/telegram/webhook'),
@@ -63,7 +65,9 @@ return [
     ],
 
     'authorization' => [
-        'admin_user_ids' => array_values(array_filter(array_map('trim', explode(',', env('TELEGRAM_ADMIN_USER_IDS', ''))))),
+        // Reserved for package-level authorization features. HORTON does not
+        // expose administration through Telegram.
+        'admin_user_ids' => [],
     ],
 
     'conversation' => [
