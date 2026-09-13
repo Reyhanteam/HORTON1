@@ -120,9 +120,17 @@ final class DomainNotificationObserver
             }
 
             if ($model->wasChanged('status')) {
-                $dispatcher->dispatch($model, NotificationType::ACCOUNT_STATUS_CHANGED, [
-                    'status' => $model->status->value,
-                ], 'user:'.$model->id.':status:'.$model->status->value);
+                $from = $model->getOriginal('status');
+                $from = $from instanceof \BackedEnum ? $from->value : (string) $from;
+                $to = $model->status->value;
+
+                if ($from === 'pending' && $to === 'active') {
+                    $dispatcher->dispatch($model, NotificationType::REGISTRATION_SUCCESS, [], 'user:'.$model->id.':registered');
+                } else {
+                    $dispatcher->dispatch($model, NotificationType::ACCOUNT_STATUS_CHANGED, [
+                        'status' => $to,
+                    ], 'user:'.$model->id.':status:'.$to);
+                }
             }
             return;
         }
@@ -213,10 +221,12 @@ final class DomainNotificationObserver
 
         if ($model instanceof Referral && $model->wasChanged('status') && $model->status === 'qualified') {
             $model->loadMissing('referrer');
-            $dispatcher->dispatch($model->referrer, NotificationType::REFERRAL_REWARD, [
-                'referral_id' => $model->id,
-                'referred_user_id' => $model->referred_user_id,
-            ], 'referral:'.$model->id.':qualified');
+            if ($model->referrer) {
+                $dispatcher->dispatch($model->referrer, NotificationType::REFERRAL_REWARD, [
+                    'referral_id' => $model->id,
+                    'referred_user_id' => $model->referred_user_id,
+                ], 'referral:'.$model->id.':qualified');
+            }
             return;
         }
 
