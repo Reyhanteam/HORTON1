@@ -9,6 +9,7 @@ use App\Contracts\WalletService;
 use App\Services\Registration\RegistrationService;
 use App\Services\Telegram\BotMessageResponder;
 use App\Models\User;
+use LogicException;
 use ReyhanTeam\TelegramBotRouter\Keyboard\Keyboard;
 use ReyhanTeam\TelegramBotRouter\TelegramUpdate;
 
@@ -44,9 +45,9 @@ final class MainMenuController
     {
         return $this->responder->respond(
             $update,
-            $this->messages->get('menu.coming_soon', default: 'این بخش در حال آماده‌سازی است.', type: 'message') ?? 'این بخش در حال آماده‌سازی است.',
+            $this->message('menu.coming_soon'),
             Keyboard::inline()->callbackButton(
-                $this->messages->get('menu.back_button', default: '↩️ بازگشت به منوی اصلی', type: 'button') ?? '↩️ بازگشت به منوی اصلی',
+                $this->button('menu.back_button'),
                 'menu:home',
             )->toArray(),
         );
@@ -56,42 +57,64 @@ final class MainMenuController
     {
         $account = $user->telegramAccount;
         $name = trim((string) ($user->name ?: trim(($account?->first_name ?? '') . ' ' . ($account?->last_name ?? ''))));
-        $username = $account?->username ? '@' . ltrim((string) $account->username, '@') : 'ندارد';
-        $phone = $user->phone ?: 'ثبت نشده';
-        $balance = number_format($this->wallets->balance($user, 'IRR')) . ' ریال';
+        $username = $account?->username ? '@' . ltrim((string) $account->username, '@') : $this->message('menu.no_username');
+        $phone = $user->phone ?: $this->message('menu.phone_not_registered');
+        $balance = number_format($this->wallets->balance($user, 'IRR')) . ' ' . $this->message('menu.currency_irr');
 
-        return "سلام {$name} 🌷\n\n" .
-            "👤 نام و نام خانوادگی: {$name}\n" .
-            "🔹 نام کاربری: {$username}\n" .
-            "📱 شماره تلفن: {$phone}\n" .
-            "💰 موجودی کیف پول: {$balance}\n\n" .
-            "از منوی زیر گزینه موردنظر را انتخاب کنید 👇";
+        return $this->render('menu.home', [
+            '{name}' => $name,
+            '{username}' => $username,
+            '{phone}' => $phone,
+            '{balance}' => $balance,
+        ]);
     }
 
     private function keyboard(): array
     {
-        $button = fn (string $key, string $fallback, string $callback): array => [
-            'text' => $this->messages->get($key, default: $fallback, type: 'button') ?? $fallback,
-            'callback_data' => $callback,
-        ];
-
         return Keyboard::inline()
-            ->callbackButton($button('menu.renew', '🔄 تمدید سرویس', self::RENEW)['text'], self::RENEW)
-            ->callbackButton($button('menu.shop', '🛒 خرید اشتراک', self::SHOP)['text'], self::SHOP)
+            ->callbackButton($this->button('menu.renew'), self::RENEW)
+            ->callbackButton($this->button('menu.shop'), self::SHOP)
             ->row()
-            ->callbackButton($button('menu.luck_wheel', '🎡 گردونه شانس', self::LUCK_WHEEL)['text'], self::LUCK_WHEEL)
-            ->callbackButton($button('menu.test_account', '🧪 اکانت تست', self::TEST_ACCOUNT)['text'], self::TEST_ACCOUNT)
+            ->callbackButton($this->button('menu.luck_wheel'), self::LUCK_WHEEL)
+            ->callbackButton($this->button('menu.test_account'), self::TEST_ACCOUNT)
             ->row()
-            ->callbackButton($button('menu.wallet', '💰 کیف پول + شارژ', self::WALLET)['text'], self::WALLET)
-            ->callbackButton($button('menu.services', '📦 سرویس‌های من', self::SERVICES)['text'], self::SERVICES)
+            ->callbackButton($this->button('menu.wallet'), self::WALLET)
+            ->callbackButton($this->button('menu.services'), self::SERVICES)
             ->row()
-            ->callbackButton($button('menu.plans', '💳 تعرفه اشتراک‌ها', self::PLANS)['text'], self::PLANS)
-            ->callbackButton($button('menu.referral', '👥 زیرمجموعه‌گیری', self::REFERRAL)['text'], self::REFERRAL)
+            ->callbackButton($this->button('menu.plans'), self::PLANS)
+            ->callbackButton($this->button('menu.referral'), self::REFERRAL)
             ->row()
-            ->callbackButton($button('menu.tutorials', '🎓 آموزش', self::TUTORIALS)['text'], self::TUTORIALS)
-            ->callbackButton($button('menu.support', '🎧 پشتیبانی', self::SUPPORT)['text'], self::SUPPORT)
+            ->callbackButton($this->button('menu.tutorials'), self::TUTORIALS)
+            ->callbackButton($this->button('menu.support'), self::SUPPORT)
             ->row()
-            ->callbackButton($button('menu.representative', '🏪 پنل نمایندگی', self::REPRESENTATIVE)['text'], self::REPRESENTATIVE)
+            ->callbackButton($this->button('menu.representative'), self::REPRESENTATIVE)
             ->toArray();
+    }
+
+    private function message(string $key): string
+    {
+        $message = $this->messages->get($key, type: 'message');
+
+        if ($message === null) {
+            throw new LogicException("Missing bot message: {$key}");
+        }
+
+        return $message;
+    }
+
+    private function button(string $key): string
+    {
+        $button = $this->messages->get($key, type: 'button');
+
+        if ($button === null) {
+            throw new LogicException("Missing bot button message: {$key}");
+        }
+
+        return $button;
+    }
+
+    private function render(string $key, array $replace = []): string
+    {
+        return strtr($this->message($key), array_map(static fn ($value): string => (string) $value, $replace));
     }
 }
