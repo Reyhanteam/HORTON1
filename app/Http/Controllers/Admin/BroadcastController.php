@@ -8,29 +8,39 @@ use App\Models\Broadcast;
 use App\Services\Notifications\BroadcastService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 
 final class BroadcastController
 {
     public function index(Request $request): JsonResponse
     {
         $perPage = min(100, max(1, (int) $request->integer('per_page', 25)));
-
-        return response()->json(
-            Broadcast::query()->latest('id')->paginate($perPage),
-        );
+        return response()->json(Broadcast::query()->latest('id')->paginate($perPage));
     }
 
     public function store(Request $request): JsonResponse
     {
-        $data = $request->validate([
+        $validator = Validator::make($request->all(), [
             'name' => ['required', 'string', 'max:255'],
             'message' => ['nullable', 'string'],
             'media' => ['nullable', 'array'],
+            'media.type' => ['nullable', 'in:photo,document,video,animation,audio,voice'],
+            'media.value' => ['nullable', 'string', 'max:4096'],
+            'media.file_id' => ['nullable', 'string', 'max:4096'],
+            'media.url' => ['nullable', 'string', 'max:4096'],
             'keyboard' => ['nullable', 'array'],
             'targeting' => ['nullable', 'array'],
             'batch_size' => ['nullable', 'integer', 'min:1', 'max:1000'],
             'scheduled_at' => ['nullable', 'date'],
         ]);
+        $validator->after(function ($validator): void {
+            $message = request()->input('message');
+            $media = request()->input('media');
+            if (blank($message) && ! is_array($media)) {
+                $validator->errors()->add('message', 'A broadcast requires a message or media.');
+            }
+        });
+        $data = $validator->validate();
 
         $broadcast = Broadcast::query()->create([
             'name' => $data['name'],
