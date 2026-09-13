@@ -6,28 +6,33 @@ return [
     |--------------------------------------------------------------------------
     | Default Queue Connection Name
     |--------------------------------------------------------------------------
-    |
-    | Laravel's queue supports a variety of backends via a single, unified
-    | API, giving you convenient access to each backend using identical
-    | syntax for each. The default queue connection is defined below.
-    |
     */
 
     'default' => env('QUEUE_CONNECTION', 'database'),
 
     /*
     |--------------------------------------------------------------------------
-    | Queue Connections
+    | HORTON Application Job Policy
     |--------------------------------------------------------------------------
     |
-    | Here you may configure the connection options for every queue backend
-    | used by your application. An example configuration is provided for
-    | each backend supported by Laravel. You're also free to add more.
-    |
-    | Drivers: "sync", "database", "beanstalkd", "sqs", "redis",
-    |          "deferred", "background", "failover", "null"
+    | Application jobs use this policy independently from the Telegram Router
+    | queue policy. Telegram update jobs remain configured under
+    | config/telegram-bot-router.php.
     |
     */
+
+    'horton' => [
+        'connection' => env('HORTON_QUEUE_CONNECTION', null),
+        'queue' => env('HORTON_QUEUE_NAME', 'default'),
+        'tries' => (int) env('HORTON_QUEUE_TRIES', 3),
+        'backoff' => array_values(array_filter(
+            array_map('trim', explode(',', env('HORTON_QUEUE_BACKOFF', '10,30,90'))),
+            'strlen'
+        )),
+        'timeout' => (int) env('HORTON_QUEUE_TIMEOUT', 120),
+        'unique_for' => (int) env('HORTON_QUEUE_UNIQUE_FOR', 86400),
+        'middleware' => [],
+    ],
 
     'connections' => [
 
@@ -91,34 +96,10 @@ return [
 
     ],
 
-    /*
-    |--------------------------------------------------------------------------
-    | Job Batching
-    |--------------------------------------------------------------------------
-    |
-    | The following options configure the database and table that store job
-    | batching information. These options can be updated to any database
-    | connection and table which has been defined by your application.
-    |
-    */
-
     'batching' => [
         'database' => env('DB_CONNECTION', 'sqlite'),
         'table' => 'job_batches',
     ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Failed Queue Jobs
-    |--------------------------------------------------------------------------
-    |
-    | These options configure the behavior of failed queue job logging so you
-    | can control how and where failed jobs are stored. Laravel ships with
-    | support for storing failed jobs in a simple file or in a database.
-    |
-    | Supported drivers: "database-uuids", "dynamodb", "file", "null"
-    |
-    */
 
     'failed' => [
         'driver' => env('QUEUE_FAILED_DRIVER', 'database-uuids'),
