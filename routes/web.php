@@ -8,8 +8,6 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', fn () => view('welcome'))->name('home');
 
 Route::middleware(['auth:sanctum', config('jetstream.auth_session'), 'verified'])->group(function (): void {
-    Route::get('/dashboard', [UserPortalController::class, 'dashboard'])->name('dashboard');
-
     Route::prefix('shop')->name('portal.')->group(function (): void {
         Route::get('/', [UserPortalController::class, 'shop'])->name('shop');
         Route::get('/category/{category}', [UserPortalController::class, 'shop'])->name('shop.category');
