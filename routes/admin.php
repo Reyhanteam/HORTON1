@@ -6,6 +6,8 @@ use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\BroadcastController;
 use App\Http\Controllers\Admin\NotificationController;
 use App\Http\Controllers\Admin\SupportController;
+use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\WalletController;
 use App\Http\Middleware\AuthenticateAdmin;
 use App\Http\Middleware\RequireAdminPermission;
 use Illuminate\Support\Facades\Route;
@@ -17,9 +19,34 @@ Route::prefix('admin')->name('admin.')->group(function (): void {
         Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
         Route::get('/me', fn () => response()->json(auth('admin')->user()))->name('me');
 
-        Route::get('/users', fn () => response()->json(['message' => 'Users endpoint ready.']))
+        Route::get('/users', [UserController::class, 'index'])
             ->middleware(RequireAdminPermission::class.':users.view')
             ->name('users.index');
+        Route::get('/users/{user}', [UserController::class, 'show'])
+            ->middleware(RequireAdminPermission::class.':users.view')
+            ->name('users.show');
+        Route::patch('/users/{user}/status', [UserController::class, 'status'])
+            ->middleware(RequireAdminPermission::class.':users.manage')
+            ->name('users.status');
+        Route::get('/users/{user}/telegram', [UserController::class, 'telegram'])
+            ->middleware(RequireAdminPermission::class.':users.view')
+            ->name('users.telegram');
+
+        Route::get('/users/{user}/wallet', [WalletController::class, 'show'])
+            ->middleware(RequireAdminPermission::class.':wallet.view')
+            ->name('wallet.show');
+        Route::get('/users/{user}/wallet/transactions', [WalletController::class, 'transactions'])
+            ->middleware(RequireAdminPermission::class.':wallet.view')
+            ->name('wallet.transactions');
+        Route::post('/users/{user}/wallet/credit', [WalletController::class, 'credit'])
+            ->middleware(RequireAdminPermission::class.':wallet.credit')
+            ->name('wallet.credit');
+        Route::post('/users/{user}/wallet/debit', [WalletController::class, 'debit'])
+            ->middleware(RequireAdminPermission::class.':wallet.debit')
+            ->name('wallet.debit');
+        Route::patch('/users/{user}/wallet/status', [WalletController::class, 'status'])
+            ->middleware(RequireAdminPermission::class.':wallet.manage')
+            ->name('wallet.status');
 
         Route::get('/notifications', [NotificationController::class, 'index'])
             ->middleware(RequireAdminPermission::class.':notifications.view')
