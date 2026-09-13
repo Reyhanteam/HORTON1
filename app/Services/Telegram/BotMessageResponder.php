@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Services\Telegram;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use ReyhanTeam\TelegramBotRouter\Exceptions\TelegramApiException;
 use ReyhanTeam\TelegramBotRouter\Facades\BOT;
 use ReyhanTeam\TelegramBotRouter\TelegramUpdate;
 
@@ -29,16 +31,25 @@ final class BotMessageResponder
         }
 
         if ($messageId !== null && $chatId !== null) {
-            $result = BOT::editMessageText(
-                $chatId,
-                $messageId,
-                $text,
-                replyMarkup: $replyMarkup,
-            );
+            try {
+                $result = BOT::editMessageText(
+                    $chatId,
+                    $messageId,
+                    $text,
+                    replyMarkup: $replyMarkup,
+                );
 
-            $this->remember($chatId, $messageId);
+                $this->remember($chatId, $messageId);
 
-            return $result;
+                return $result;
+            } catch (TelegramApiException $exception) {
+                Log::warning('Telegram bot message edit failed; falling back to a new message.', [
+                    'chat_id' => (string) $chatId,
+                    'message_id' => $messageId,
+                    'telegram_error_code' => $exception->getTelegramErrorCode(),
+                    'error' => $exception->getMessage(),
+                ]);
+            }
         }
 
         return $this->sendNew($chatId, $text, $replyMarkup);
