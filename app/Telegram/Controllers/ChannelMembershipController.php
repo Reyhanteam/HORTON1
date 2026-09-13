@@ -8,7 +8,7 @@ use App\Contracts\BotMessageStore;
 use App\Contracts\ChannelMembershipService;
 use App\DTOs\ChannelMembershipResult;
 use App\Models\BotChannel;
-use ReyhanTeam\TelegramBotRouter\Facades\BOT;
+use App\Services\Telegram\BotMessageResponder;
 use ReyhanTeam\TelegramBotRouter\Keyboard\Keyboard;
 use ReyhanTeam\TelegramBotRouter\TelegramUpdate;
 
@@ -19,6 +19,7 @@ final class ChannelMembershipController
     public function __construct(
         private readonly ChannelMembershipService $membership,
         private readonly BotMessageStore $messages,
+        private readonly BotMessageResponder $responder,
         private readonly RegistrationController $registration,
     ) {}
 
@@ -28,8 +29,8 @@ final class ChannelMembershipController
 
         if ($result->allowed()) {
             // Membership verification is a gate, not an onboarding step.
-            // Continue directly with the registration conversation instead of
-            // showing a transient "membership verified" message.
+            // Continue directly with the registration conversation. The
+            // existing membership message is edited into the rules message.
             return $this->registration->start($update);
         }
 
@@ -39,10 +40,10 @@ final class ChannelMembershipController
     public function sendRestriction(TelegramUpdate $update, ChannelMembershipResult $result): mixed
     {
         if ($result->unavailable) {
-            return BOT::sendMessage(
-                $update->chatId(),
+            return $this->responder->respond(
+                $update,
                 $this->message('membership.unavailable'),
-                replyMarkup: Keyboard::inline()
+                Keyboard::inline()
                     ->callbackButton($this->button('membership.recheck'), self::RECHECK)
                     ->toArray(),
             );
@@ -60,10 +61,10 @@ final class ChannelMembershipController
 
         $keyboard->callbackButton($this->button('membership.recheck'), self::RECHECK);
 
-        return BOT::sendMessage(
-            $update->chatId(),
+        return $this->responder->respond(
+            $update,
             $this->message('membership.restricted'),
-            replyMarkup: $keyboard->toArray(),
+            $keyboard->toArray(),
         );
     }
 
