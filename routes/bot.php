@@ -23,6 +23,7 @@ Route::onCallback(ChannelMembershipController::RECHECK, [ChannelMembershipContro
 Route::onCallback('menu:home', [MainMenuController::class, 'show']);
 Route::onCallback(MainMenuController::RENEW, [MainMenuController::class, 'action']);
 Route::onCallback(MainMenuController::SHOP, [MainMenuController::class, 'action']);
+Route::onCallback(MainMenuController::LUCK_WHEEL, [MainMenuController::class, 'action']);
 Route::onCallback(MainMenuController::TEST_ACCOUNT, [MainMenuController::class, 'action']);
 Route::onCallback(MainMenuController::WALLET, [MainMenuController::class, 'action']);
 Route::onCallback(MainMenuController::SERVICES, [MainMenuController::class, 'action']);
