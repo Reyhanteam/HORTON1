@@ -28,14 +28,16 @@ $applyRateLimits(Route::onCallback(MainMenuController::SERVICES, [MainMenuContro
 $applyRateLimits(Route::onCallback(MainMenuController::PLANS, [MainMenuController::class, 'action']));
 $applyRateLimits(Route::onCallback(MainMenuController::REFERRAL, [MainMenuController::class, 'action']));
 $applyRateLimits(Route::onCallback(MainMenuController::TUTORIALS, [MainMenuController::class, 'action']));
-$applyRateLimits(Route::onCallback(MainMenuController::REPRESENTATIVE, [MainMenuController::class, 'action']));
 $applyRateLimits(Route::onCallback(MainMenuController::SUPPORT, [SupportController::class, 'entry']));
+$applyRateLimits(Route::onCallback(MainMenuController::REPRESENTATIVE, [MainMenuController::class, 'action']));
 $applyRateLimits(Route::onCallback(SupportController::FAQ, [SupportController::class, 'faq']));
 $applyRateLimits(Route::onCallback(SupportController::FAQ_ACCEPTED, [SupportController::class, 'begin']));
 
+$registrationSteps = RegistrationConversation::steps();
+
 Route::conversation(RegistrationConversation::name())
-    ->step([RegistrationController::class, 'acceptance'])
-    ->step([RegistrationController::class, 'phone'])
+    ->step($registrationSteps[0])
+    ->step($registrationSteps[1])
     ->ttl((int) config('telegram-bot-router.conversation.ttl', 3600))
     ->cacheStore(config('telegram-bot-router.conversation.cache_store'))
     ->cancelOnCommand('cancel')
