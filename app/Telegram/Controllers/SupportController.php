@@ -29,8 +29,7 @@ final class SupportController
         private readonly BotMessageResponder $responder,
         private readonly SupportTicketService $support,
         private readonly ConversationManager $conversations,
-    ) {
-    }
+    ) {}
 
     public function entry(TelegramUpdate $update): mixed
     {
@@ -163,9 +162,17 @@ final class SupportController
     private function departmentKeyboard(): array
     {
         $keyboard = Keyboard::inline();
+        $first = true;
+
         foreach ($this->support->departments() as $department) {
-            $keyboard->callbackButton($department->name, self::DEPARTMENT_PREFIX.$department->id)->row();
+            if (!$first) {
+                $keyboard->row();
+            }
+
+            $keyboard->callbackButton($department->name, self::DEPARTMENT_PREFIX.$department->id);
+            $first = false;
         }
+
         return $keyboard->toArray();
     }
 
