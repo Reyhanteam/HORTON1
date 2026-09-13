@@ -43,26 +43,19 @@ final class ChannelMembershipController
             );
         }
 
-        $rows = [];
+        $keyboard = Keyboard::inline();
         foreach ($result->missingChannels as $channel) {
             $url = $this->channelUrl($channel);
             if ($url !== null) {
-                $rows[] = [[
-                    'text' => '📢 ' . $channel->title,
-                    'url' => $url,
-                ]];
+                $keyboard->url('📢 ' . $channel->title, $url)->row();
             }
         }
-
-        $rows[] = [[
-            'text' => $this->message('membership.recheck'),
-            'callback_data' => self::RECHECK,
-        ]];
+        $keyboard->callbackButton($this->message('membership.recheck'), self::RECHECK);
 
         return BOT::sendMessage(
             $update->chatId(),
             $this->message('membership.restricted'),
-            replyMarkup: Keyboard::inline()->rows($rows)->toArray(),
+            replyMarkup: $keyboard->toArray(),
         );
     }
 
