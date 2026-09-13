@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Services\Telegram;
 
-use App\Models\BotSetting;
+use App\Contracts\SettingsStore;
 use App\Models\RequiredTelegramChannel;
 use App\Services\Telegram\DatabaseChannelMembershipService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -84,11 +84,6 @@ final class DatabaseChannelMembershipServiceTest extends TestCase
 
     private function enableFeature(): void
     {
-        BotSetting::query()->create([
-            'key' => 'features.channel_membership',
-            'value' => 'true',
-            'type' => 'boolean',
-            'is_public' => false,
-        ]);
+        app(SettingsStore::class)->set('features.channel_membership', true);
     }
 }
