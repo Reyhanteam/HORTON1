@@ -17,14 +17,14 @@ final class DatabaseChannelMembershipServiceTest extends TestCase
 
     public function test_disabled_feature_allows_without_api_call(): void
     {
-        $update = BOT::fake()->message('/start');
-        $service = app(DatabaseChannelMembershipService::class);
+        $fake = BOT::fake();
+        $update = $fake->message('/start');
 
-        $result = $service->check($update);
+        $result = app(DatabaseChannelMembershipService::class)->check($update);
 
         self::assertTrue($result->allowed());
         self::assertFalse($result->enabled);
-        BOT::getFacadeRoot()->assertNoApiCall('getChatMember');
+        $fake->assertNoApiCall('getChatMember');
     }
 
     public function test_member_is_allowed_for_all_required_channels(): void
@@ -42,9 +42,7 @@ final class DatabaseChannelMembershipServiceTest extends TestCase
         ]);
 
         $fake = BOT::fake()->respond('getChatMember', ['result' => ['status' => 'member']]);
-        $update = $fake->message('/start');
-
-        $result = app(DatabaseChannelMembershipService::class)->check($update);
+        $result = app(DatabaseChannelMembershipService::class)->check($fake->message('/start'));
 
         self::assertTrue($result->allowed());
         self::assertCount(0, $result->missingChannels);
@@ -60,15 +58,15 @@ final class DatabaseChannelMembershipServiceTest extends TestCase
             'username' => 'channel_one',
         ]);
 
-        BOT::fake()->respond('getChatMember', ['result' => ['status' => 'left']]);
-        $result = app(DatabaseChannelMembershipService::class)->check(BOT::getFacadeRoot()->message('/start'));
+        $fake = BOT::fake()->respond('getChatMember', ['result' => ['status' => 'left']]);
+        $result = app(DatabaseChannelMembershipService::class)->check($fake->message('/start'));
 
         self::assertFalse($result->allowed());
         self::assertFalse($result->member);
         self::assertSame([$channel->id], array_map(static fn ($item) => $item->id, $result->missingChannels));
     }
 
-    public function test_api_failure_fails_closed(): void
+    public function test_invalid_api_response_fails_closed(): void
     {
         $this->enableFeature();
         RequiredTelegramChannel::query()->create([
@@ -77,11 +75,7 @@ final class DatabaseChannelMembershipServiceTest extends TestCase
             'username' => 'channel_one',
         ]);
 
-        $fake = BOT::fake();
-        $fake->respond('getChatMember', static function (): never {
-            throw new \RuntimeException('Telegram API unavailable');
-        });
-
+        $fake = BOT::fake()->respond('getChatMember', ['ok' => false]);
         $result = app(DatabaseChannelMembershipService::class)->check($fake->message('/start'));
 
         self::assertFalse($result->allowed());
