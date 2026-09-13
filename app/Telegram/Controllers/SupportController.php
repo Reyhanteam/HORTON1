@@ -6,13 +6,13 @@ namespace App\Telegram\Controllers;
 
 use App\Contracts\BotMessageStore;
 use App\Models\SupportTicket;
-use App\Models\User;
 use App\Services\Registration\RegistrationService;
 use App\Services\Support\SupportTicketService;
 use App\Services\Telegram\BotMessageResponder;
+use App\Telegram\Conversations\SupportConversation;
 use ReyhanTeam\TelegramBotRouter\Conversation\ConversationManager;
-use ReyhanTeam\TelegramBotRouter\TelegramUpdate;
 use ReyhanTeam\TelegramBotRouter\Keyboard\Keyboard;
+use ReyhanTeam\TelegramBotRouter\TelegramUpdate;
 
 final class SupportController
 {
@@ -66,7 +66,6 @@ final class SupportController
     public function begin(TelegramUpdate $update): mixed
     {
         $departments = $this->support->departments();
-
         if ($departments->isEmpty()) {
             return $this->responder->respond($update, $this->message('support.no_departments'));
         }
@@ -96,8 +95,7 @@ final class SupportController
         }
 
         $departmentId = (int) substr($callback, strlen(self::DEPARTMENT_PREFIX));
-        $department = $this->support->departments()->firstWhere('id', $departmentId);
-        if ($department === null) {
+        if ($this->support->departments()->firstWhere('id', $departmentId) === null) {
             throw new \InvalidArgumentException('Invalid support department selection.');
         }
 
@@ -127,7 +125,6 @@ final class SupportController
         }
 
         $this->responder->respond($update, $this->message('support.write_message'));
-
         return ['data' => [...$data, 'sensitivity' => $sensitivity]];
     }
 
@@ -175,27 +172,23 @@ final class SupportController
     private function extractMessage(TelegramUpdate $update): array
     {
         $message = $update->originalUpdate()->message ?? null;
-        if ($message === null) {
-            return ['text' => trim((string) $update->text()), 'attachments' => []];
-        }
+        if ($message === null) return ['text' => trim((string) $update->text()), 'attachments' => []];
 
         $text = $message->text ?? $message->caption ?? null;
         $attachments = [];
 
-        foreach (['photo' => 'photo', 'video' => 'video', 'document' => 'document'] as $property => $type) {
+        $photo = $message->photo ?? null;
+        if ($photo !== null) {
+            $sizes = is_object($photo) ? get_object_vars($photo) : (is_array($photo) ? $photo : []);
+            $last = $sizes === [] ? null : end($sizes);
+            $fileId = is_object($last) ? ($last->file_id ?? null) : (is_array($last) ? ($last['file_id'] ?? null) : null);
+            if (is_string($fileId) && $fileId !== '') $attachments[] = ['type' => 'photo', 'file_id' => $fileId];
+        }
+
+        foreach (['video' => 'video', 'document' => 'document'] as $property => $type) {
             $value = $message->{$property} ?? null;
-            if ($value === null) {
-                continue;
-            }
-            if ($type === 'photo' && is_array($value)) {
-                $last = end($value);
-                $fileId = $last->file_id ?? null;
-            } else {
-                $fileId = $value->file_id ?? null;
-            }
-            if (is_string($fileId) && $fileId !== '') {
-                $attachments[] = ['type' => $type, 'file_id' => $fileId];
-            }
+            $fileId = is_object($value) ? ($value->file_id ?? null) : (is_array($value) ? ($value['file_id'] ?? null) : null);
+            if (is_string($fileId) && $fileId !== '') $attachments[] = ['type' => $type, 'file_id' => $fileId];
         }
 
         return ['text' => is_string($text) ? trim($text) : null, 'attachments' => $attachments];
@@ -204,18 +197,14 @@ final class SupportController
     private function message(string $key): string
     {
         $value = $this->messages->get($key, type: 'message');
-        if ($value === null) {
-            throw new \LogicException("Missing bot message: {$key}");
-        }
+        if ($value === null) throw new \LogicException("Missing bot message: {$key}");
         return $value;
     }
 
     private function button(string $key): string
     {
         $value = $this->messages->get($key, type: 'button');
-        if ($value === null) {
-            throw new \LogicException("Missing bot button message: {$key}");
-        }
+        if ($value === null) throw new \LogicException("Missing bot button message: {$key}");
         return $value;
     }
 
