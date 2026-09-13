@@ -16,9 +16,7 @@ final class BroadcastService
     {
         DB::transaction(function () use ($broadcast): void {
             $locked = Broadcast::query()->whereKey($broadcast->id)->lockForUpdate()->firstOrFail();
-            if (in_array($locked->status, ['queued', 'sending', 'completed', 'cancelled'], true)) {
-                return;
-            }
+            if (in_array($locked->status, ['queued', 'sending', 'completed', 'cancelled'], true)) return;
 
             $locked->forceFill([
                 'status' => 'queued',
@@ -45,6 +43,7 @@ final class BroadcastService
     {
         $targeting = is_array($broadcast->targeting) ? $broadcast->targeting : [];
         $query = User::query()
+            ->where('status', 'active')
             ->whereHas('telegramAccount', fn (Builder $q) => $q->where('is_active', true));
 
         if (array_key_exists('user_status', $targeting)) {
