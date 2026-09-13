@@ -21,8 +21,10 @@ final class DispatchNotificationTasks extends Command
 
     public function handle(NotificationDispatcher $notifications, BroadcastService $broadcasts, SettingsStore $settings): int
     {
+        $scheduled = $this->queueScheduledBroadcasts($broadcasts);
+
         if (! (bool) $settings->get('notifications.enabled', true)) {
-            $this->info('Notifications are disabled.');
+            $this->info("Notifications are disabled; broadcasts queued: {$scheduled}.");
             return self::SUCCESS;
         }
 
@@ -44,7 +46,6 @@ final class DispatchNotificationTasks extends Command
             NotificationType::SERVICE_EXPIRING_24_HOURS,
             (bool) $settings->get('notifications.service_expiry.24_hours.enabled', true),
         );
-        $scheduled = $this->queueScheduledBroadcasts($broadcasts);
 
         $this->info("Expired: {$expired}; {$threeDaysHours}-hour reminders: {$threeDays}; {$twentyFourHours}-hour reminders: {$twentyFourHoursCount}; broadcasts queued: {$scheduled}.");
         return self::SUCCESS;
@@ -63,12 +64,12 @@ final class DispatchNotificationTasks extends Command
                         $locked = Service::query()->with('user')->whereKey($service->id)->lockForUpdate()->first();
                         if (! $locked || $locked->status !== ServiceStatus::ACTIVE || ! $locked->expires_at?->isPast()) return;
                         $locked->forceFill(['status' => ServiceStatus::EXPIRED])->save();
-                        $notifications->dispatch($locked->user, NotificationType::SERVICE_EXPIRED, [
+                        $notification = $notifications->dispatch($locked->user, NotificationType::SERVICE_EXPIRED, [
                             'service_id' => $locked->id,
                             'service_uuid' => $locked->uuid,
                             'expires_at' => $locked->expires_at?->toDateTimeString() ?: '',
                         ], 'service:'.$locked->id.':expired');
-                        $count++;
+                        if ($notification !== null) $count++;
                     });
                 }
             });
