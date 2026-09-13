@@ -24,10 +24,10 @@ final class SendTelegramNotificationJob implements ShouldQueue, ShouldBeUnique
     use SerializesModels;
 
     public int $uniqueFor;
-    public bool $afterCommit = true;
 
     public function __construct(public readonly int $notificationId)
     {
+        $this->afterCommit = true;
         $this->configureHortonQueue('notifications');
         $this->uniqueFor = $this->hortonQueueUniqueFor();
     }
