@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Admin;
 use App\Actions\Wallet\CreditWalletAction;
 use App\Actions\Wallet\DebitWalletAction;
 use App\DTOs\WalletMutationData;
+use App\Models\AdminUser;
 use App\Models\AuditLog;
 use App\Models\User;
 use App\Models\Wallet;
@@ -62,7 +63,7 @@ final class WalletController
             type: 'admin_credit',
             description: $data['description'],
             idempotencyKey: $data['idempotency_key'] ?? null,
-            metadata: ['admin_user_id' => auth('admin')->id()],
+            metadata: ['admin_user_id' => $this->adminUserId()],
         ), $data['currency'] ?? 'IRR');
 
         $this->audit('wallet.credit', $user, $transaction->id, ['amount' => $transaction->amount]);
@@ -84,7 +85,7 @@ final class WalletController
             type: 'admin_debit',
             description: $data['description'],
             idempotencyKey: $data['idempotency_key'] ?? null,
-            metadata: ['admin_user_id' => auth('admin')->id()],
+            metadata: ['admin_user_id' => $this->adminUserId()],
         ), $data['currency'] ?? 'IRR');
 
         $this->audit('wallet.debit', $user, $transaction->id, ['amount' => $transaction->amount]);
@@ -108,13 +109,22 @@ final class WalletController
         return response()->json($wallet->refresh());
     }
 
+    private function adminUserId(): ?int
+    {
+        $email = auth()->user()?->email;
+
+        return $email
+            ? AdminUser::query()->where('email', $email)->value('id')
+            : null;
+    }
+
     private function audit(string $action, User $user, int $referenceId, array $newValues): void
     {
         AuditLog::query()->create([
-            'admin_user_id' => auth('admin')->id(),
+            'admin_user_id' => $this->adminUserId(),
             'action' => $action,
-            'auditable_type' => User::class,
-            'auditable_id' => $user->id,
+            'subject_type' => User::class,
+            'subject_id' => $user->id,
             'old_values' => [],
             'new_values' => [...$newValues, 'reference_id' => $referenceId],
             'ip_address' => request()->ip(),
