@@ -65,9 +65,7 @@ return [
     ],
 
     'authorization' => [
-        // Reserved for package-level authorization features. HORTON does not
-        // expose administration through Telegram.
-        'admin_user_ids' => [],
+        'admin_user_ids' => array_values(array_filter(array_map('trim', explode(',', env('TELEGRAM_ADMIN_USER_IDS', ''))))),
     ],
 
     'conversation' => [
