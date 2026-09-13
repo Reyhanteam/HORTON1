@@ -58,6 +58,17 @@ final class RegistrationCancellationTest extends TestCase
         self::assertSame('+491234567890', $user->phone);
     }
 
+    public function test_contact_update_while_acceptance_step_is_active_does_not_read_message_text(): void
+    {
+        Telegram::fake()->respond('sendMessage', ['message_id' => 1]);
+
+        $this->postJson('/telegram/webhook', self::startUpdate());
+        $this->postJson('/telegram/webhook', self::contactUpdate());
+
+        self::assertSame(UserStatus::Pending, User::query()->sole()->status);
+        self::assertNull(User::query()->sole()->phone);
+    }
+
     private static function startUpdate(): array
     {
         return [
