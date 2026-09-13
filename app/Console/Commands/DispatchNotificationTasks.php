@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Contracts\NotificationDispatcher;
+use App\Contracts\SettingsStore;
 use App\Enums\NotificationType;
 use App\Enums\ServiceStatus;
 use App\Models\Broadcast;
@@ -18,20 +19,34 @@ final class DispatchNotificationTasks extends Command
     protected $signature = 'horton:notifications:dispatch';
     protected $description = 'Dispatch service expiry notifications and scheduled broadcasts.';
 
-    public function handle(NotificationDispatcher $notifications, BroadcastService $broadcasts): int
+    public function handle(NotificationDispatcher $notifications, BroadcastService $broadcasts, SettingsStore $settings): int
     {
-        $settings = app(\App\Contracts\SettingsStore::class);
         if (! (bool) $settings->get('notifications.enabled', true)) {
             $this->info('Notifications are disabled.');
             return self::SUCCESS;
         }
 
+        $threeDaysHours = max(1, (int) $settings->get('notifications.service_expiry.3_days.hours', 72));
+        $twentyFourHours = max(1, (int) $settings->get('notifications.service_expiry.24_hours.hours', 24));
+
         $expired = $this->expireServices($notifications);
-        $threeDays = $this->dispatchExpiring($notifications, 72, NotificationType::SERVICE_EXPIRING_3_DAYS, $settings->get('notifications.service_expiry.3_days.enabled', true));
-        $twentyFourHours = $this->dispatchExpiring($notifications, 24, NotificationType::SERVICE_EXPIRING_24_HOURS, $settings->get('notifications.service_expiry.24_hours.enabled', true));
+        $threeDays = $this->dispatchExpiring(
+            $notifications,
+            $threeDaysHours,
+            $twentyFourHours,
+            NotificationType::SERVICE_EXPIRING_3_DAYS,
+            (bool) $settings->get('notifications.service_expiry.3_days.enabled', true),
+        );
+        $twentyFourHoursCount = $this->dispatchExpiring(
+            $notifications,
+            $twentyFourHours,
+            0,
+            NotificationType::SERVICE_EXPIRING_24_HOURS,
+            (bool) $settings->get('notifications.service_expiry.24_hours.enabled', true),
+        );
         $scheduled = $this->queueScheduledBroadcasts($broadcasts);
 
-        $this->info("Expired: {$expired}; 3-day reminders: {$threeDays}; 24-hour reminders: {$twentyFourHours}; broadcasts queued: {$scheduled}.");
+        $this->info("Expired: {$expired}; {$threeDaysHours}-hour reminders: {$threeDays}; {$twentyFourHours}-hour reminders: {$twentyFourHoursCount}; broadcasts queued: {$scheduled}.");
         return self::SUCCESS;
     }
 
@@ -42,7 +57,6 @@ final class DispatchNotificationTasks extends Command
             ->where('status', ServiceStatus::ACTIVE)
             ->whereNotNull('expires_at')
             ->where('expires_at', '<=', now())
-            ->with('user')
             ->chunkById(100, function ($services) use ($notifications, &$count): void {
                 foreach ($services as $service) {
                     DB::transaction(function () use ($service, $notifications, &$count): void {
@@ -61,30 +75,30 @@ final class DispatchNotificationTasks extends Command
         return $count;
     }
 
-    private function dispatchExpiring(NotificationDispatcher $notifications, int $hours, NotificationType $type, bool $enabled): int
+    private function dispatchExpiring(NotificationDispatcher $notifications, int $hours, int $lowerHours, NotificationType $type, bool $enabled): int
     {
         if (! $enabled) return 0;
 
         $upper = now()->addHours($hours);
-        $lower = $hours === 24 ? now() : now()->addHours(24);
-        $count = 0;
-
-        Service::query()
+        $query = Service::query()
             ->where('status', ServiceStatus::ACTIVE)
             ->whereNotNull('expires_at')
-            ->where('expires_at', '>', $lower)
-            ->where('expires_at', '<=', $upper)
-            ->with('user')
-            ->chunkById(100, function ($services) use ($notifications, $type, &$count): void {
-                foreach ($services as $service) {
-                    $notifications->dispatch($service->user, $type, [
-                        'service_id' => $service->id,
-                        'service_uuid' => $service->uuid,
-                        'expires_at' => $service->expires_at?->toDateTimeString() ?: '',
-                    ], 'service:'.$service->id.':'.$type->value);
-                    $count++;
-                }
-            });
+            ->where('expires_at', '>', now());
+
+        if ($lowerHours > 0) $query->where('expires_at', '>', now()->addHours($lowerHours));
+        $query->where('expires_at', '<=', $upper)->with('user');
+
+        $count = 0;
+        $query->chunkById(100, function ($services) use ($notifications, $type, &$count): void {
+            foreach ($services as $service) {
+                $notification = $notifications->dispatch($service->user, $type, [
+                    'service_id' => $service->id,
+                    'service_uuid' => $service->uuid,
+                    'expires_at' => $service->expires_at?->toDateTimeString() ?: '',
+                ], 'service:'.$service->id.':'.$type->value);
+                if ($notification !== null) $count++;
+            }
+        });
 
         return $count;
     }
