@@ -66,9 +66,14 @@ final class RegistrationController
         $result = $this->registration->accept($user);
 
         if ($result['done'] === true) {
+            /** @var \App\Models\User $registeredUser */
+            $registeredUser = $result['user'];
+
             $this->send(
                 $update,
-                $this->registration->message('registration.success'),
+                $this->registration->render('registration.success', [
+                    '{name}' => $registeredUser->name ?? '',
+                ]),
                 Keyboard::reply()->remove()->toArray(),
             );
 
