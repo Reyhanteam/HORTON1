@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Services\Registration;
 
 use App\Actions\Users\RegisterUserAction;
+use App\Contracts\BotMessageStore;
 use App\Contracts\FeatureManager;
-use App\Contracts\SettingsStore;
 use App\Contracts\UserLifecycle;
 use App\DTOs\CreateUserData;
 use App\Enums\Feature;
@@ -28,7 +28,7 @@ final class RegistrationService
         private readonly RegisterUserAction $registerUser,
         private readonly UserLifecycle $lifecycle,
         private readonly FeatureManager $features,
-        private readonly SettingsStore $settings,
+        private readonly BotMessageStore $messages,
         private readonly DatabaseManager $db,
         private readonly PhoneNumberNormalizer $phoneNormalizer,
     ) {}
@@ -162,7 +162,7 @@ final class RegistrationService
 
     public function message(string $key): string
     {
-        return (string) $this->settings->get('messages.' . $key, $key);
+        return $this->messages->get($key, default: $key) ?? $key;
     }
 
     public function render(string $key, array $replace = []): string
