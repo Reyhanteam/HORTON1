@@ -33,9 +33,9 @@ final class BroadcastController
             'batch_size' => ['nullable', 'integer', 'min:1', 'max:1000'],
             'scheduled_at' => ['nullable', 'date'],
         ]);
-        $validator->after(function ($validator): void {
-            $message = request()->input('message');
-            $media = request()->input('media');
+        $validator->after(function ($validator) use ($request): void {
+            $message = $request->input('message');
+            $media = $request->input('media');
             if (blank($message) && ! is_array($media)) {
                 $validator->errors()->add('message', 'A broadcast requires a message or media.');
             }
