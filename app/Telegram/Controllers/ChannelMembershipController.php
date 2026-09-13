@@ -7,7 +7,7 @@ namespace App\Telegram\Controllers;
 use App\Contracts\ChannelMembershipService;
 use App\Contracts\SettingsStore;
 use App\DTOs\ChannelMembershipResult;
-use App\Models\RequiredTelegramChannel;
+use App\Models\BotChannel;
 use ReyhanTeam\TelegramBotRouter\Facades\BOT;
 use ReyhanTeam\TelegramBotRouter\Keyboard\Keyboard;
 use ReyhanTeam\TelegramBotRouter\TelegramUpdate;
@@ -24,6 +24,7 @@ final class ChannelMembershipController
     public function recheck(TelegramUpdate $update): mixed
     {
         $result = $this->membership->check($update);
+
         if ($result->allowed()) {
             return BOT::sendMessage($update->chatId(), $this->message('membership.verified'));
         }
@@ -44,12 +45,15 @@ final class ChannelMembershipController
         }
 
         $keyboard = Keyboard::inline();
+
         foreach ($result->missingChannels as $channel) {
             $url = $this->channelUrl($channel);
+
             if ($url !== null) {
                 $keyboard->url('📢 ' . $channel->title, $url)->row();
             }
         }
+
         $keyboard->callbackButton($this->message('membership.recheck'), self::RECHECK);
 
         return BOT::sendMessage(
@@ -64,12 +68,8 @@ final class ChannelMembershipController
         return (string) $this->settings->get('messages.' . $key, $key);
     }
 
-    private function channelUrl(RequiredTelegramChannel $channel): ?string
+    private function channelUrl(BotChannel $channel): ?string
     {
-        if (is_string($channel->invite_url) && $channel->invite_url !== '') {
-            return $channel->invite_url;
-        }
-
         if (is_string($channel->username) && $channel->username !== '') {
             return 'https://t.me/' . ltrim($channel->username, '@');
         }
