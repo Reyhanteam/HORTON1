@@ -2,28 +2,13 @@
 
 return [
 
-    /*
-    |--------------------------------------------------------------------------
-    | Default Queue Connection Name
-    |--------------------------------------------------------------------------
-    */
-
     'default' => env('QUEUE_CONNECTION', 'database'),
-
-    /*
-    |--------------------------------------------------------------------------
-    | HORTON Application Job Policy
-    |--------------------------------------------------------------------------
-    |
-    | Application jobs use this policy independently from the Telegram Router
-    | queue policy. Telegram update jobs remain configured under
-    | config/telegram-bot-router.php.
-    |
-    */
 
     'horton' => [
         'connection' => env('HORTON_QUEUE_CONNECTION', null),
         'queue' => env('HORTON_QUEUE_NAME', 'default'),
+        'notifications_queue' => env('HORTON_NOTIFICATIONS_QUEUE', env('HORTON_QUEUE_NAME', 'default')),
+        'broadcast_queue' => env('HORTON_BROADCAST_QUEUE', env('HORTON_QUEUE_NAME', 'default')),
         'tries' => (int) env('HORTON_QUEUE_TRIES', 3),
         'backoff' => array_values(array_filter(
             array_map('trim', explode(',', env('HORTON_QUEUE_BACKOFF', '10,30,90'))),
