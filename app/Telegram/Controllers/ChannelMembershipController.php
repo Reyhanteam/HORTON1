@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Telegram\Controllers;
 
 use App\Contracts\ChannelMembershipService;
+use App\Contracts\SettingsStore;
 use App\DTOs\ChannelMembershipResult;
 use App\Models\RequiredTelegramChannel;
 use ReyhanTeam\TelegramBotRouter\Facades\BOT;
@@ -15,13 +16,16 @@ final class ChannelMembershipController
 {
     public const RECHECK = 'membership:check';
 
-    public function __construct(private readonly ChannelMembershipService $membership) {}
+    public function __construct(
+        private readonly ChannelMembershipService $membership,
+        private readonly SettingsStore $settings,
+    ) {}
 
     public function recheck(TelegramUpdate $update): mixed
     {
         $result = $this->membership->check($update);
         if ($result->allowed()) {
-            return BOT::sendMessage($update->chatId(), 'عضویت شما تأیید شد. اکنون می‌توانید از ربات استفاده کنید.');
+            return BOT::sendMessage($update->chatId(), $this->message('membership.verified'));
         }
 
         return $this->sendRestriction($update, $result);
@@ -32,9 +36,9 @@ final class ChannelMembershipController
         if ($result->unavailable) {
             return BOT::sendMessage(
                 $update->chatId(),
-                'در حال حاضر بررسی عضویت کانال‌ها انجام نشد. لطفاً چند لحظه بعد دوباره تلاش کنید.',
+                $this->message('membership.unavailable'),
                 replyMarkup: Keyboard::inline()
-                    ->callbackButton('🔄 بررسی مجدد', self::RECHECK)
+                    ->callbackButton($this->message('membership.recheck'), self::RECHECK)
                     ->toArray(),
             );
         }
@@ -51,15 +55,20 @@ final class ChannelMembershipController
         }
 
         $rows[] = [[
-            'text' => '🔄 بررسی عضویت',
+            'text' => $this->message('membership.recheck'),
             'callback_data' => self::RECHECK,
         ]];
 
         return BOT::sendMessage(
             $update->chatId(),
-            'برای استفاده از ربات، ابتدا در کانال‌های زیر عضو شوید و سپس «بررسی عضویت» را بزنید.',
+            $this->message('membership.restricted'),
             replyMarkup: Keyboard::inline()->rows($rows)->toArray(),
         );
+    }
+
+    private function message(string $key): string
+    {
+        return (string) $this->settings->get('messages.' . $key, $key);
     }
 
     private function channelUrl(RequiredTelegramChannel $channel): ?string
