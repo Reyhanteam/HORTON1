@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Models\AdminUser;
 use App\Models\BotSetting;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
@@ -17,7 +19,7 @@ class DatabaseSeeder extends Seeder
 
     public function run(): void
     {
-        User::query()->firstOrCreate(
+        $user = User::query()->firstOrCreate(
             ['email' => 'test@example.com'],
             ['name' => 'Test User', 'password' => 'password'],
         );
@@ -48,10 +50,19 @@ class DatabaseSeeder extends Seeder
 
         $adminEmail = env('HORTON_ADMIN_EMAIL');
         if ($adminEmail) {
-            $user = User::query()->where('email', $adminEmail)->first();
+            $adminUser = User::query()->where('email', $adminEmail)->first();
 
-            if ($user) {
-                $role->users()->syncWithoutDetaching([$user->id]);
+            if ($adminUser) {
+                $admin = AdminUser::query()->updateOrCreate(
+                    ['email' => $adminUser->email],
+                    [
+                        'name' => $adminUser->name,
+                        'password' => Hash::make(bin2hex(random_bytes(32))),
+                        'status' => $adminUser->status,
+                    ],
+                );
+
+                $admin->roles()->syncWithoutDetaching([$role->id]);
             }
         }
 
