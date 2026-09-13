@@ -37,7 +37,7 @@ final class MainMenuController
     {
         $user = $this->registration->userForUpdate($update);
 
-        return $this->responder->respond($update, $this->text($user), $this->keyboard());
+        return $this->responder->respond($update, $this->text($update, $user), $this->keyboard());
     }
 
     public function action(TelegramUpdate $update): mixed
@@ -52,12 +52,19 @@ final class MainMenuController
         );
     }
 
-    private function text(User $user): string
+    private function text(TelegramUpdate $update, User $user): string
     {
-        $account = $user->telegramAccount;
+        $account = $user->telegramAccounts()->first();
         $name = trim((string) ($user->name ?: trim(($account?->first_name ?? '') . ' ' . ($account?->last_name ?? ''))));
-        $chatId = (string) ($account?->telegram_user_id ?? $user->getKey());
-        $username = $chatId;
+
+        // For the end-user Telegram bot, the displayed identifier must be the
+        // Telegram chat ID, never the local users.id database primary key.
+        $chatId = $update->chatId();
+        if ($chatId === null) {
+            $chatId = $this->registration->telegramUserId($update);
+        }
+
+        $username = (string) $chatId;
         $phone = $user->phone ?: 'ثبت نشده';
         $balance = number_format($this->wallets->balance($user, 'IRR')) . ' ' . $this->message('menu.currency_irr');
 
