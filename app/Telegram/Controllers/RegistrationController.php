@@ -67,7 +67,6 @@ final class RegistrationController
         $result = $this->registration->accept($user);
 
         if ($result['done'] === true) {
-            /** @var \App\Models\User $registeredUser */
             $registeredUser = $result['user'];
 
             $this->send(
@@ -75,14 +74,11 @@ final class RegistrationController
                 $this->registration->render('registration.success', [
                     '{name}' => $registeredUser->name ?? '',
                 ]),
-                Keyboard::reply()->remove()->toArray(),
             );
 
             return ['done' => true, 'data' => ['accepted' => true, 'phone_verified' => false]];
         }
 
-        // Telegram cannot turn an existing inline message into a reply keyboard.
-        // This is an explicit new-message exception required for request_contact.
         $this->messages->sendNew(
             $update->chatId(),
             $this->registration->message('registration.phone_prompt'),
@@ -112,7 +108,6 @@ final class RegistrationController
             throw new InvalidArgumentException((string) $message, 0, $exception);
         }
 
-        // Removing a reply keyboard is also an explicit new-message operation.
         $this->messages->sendNew(
             $update->chatId(),
             $this->registration->render('registration.success', ['{name}' => $user->name ?? '']),
