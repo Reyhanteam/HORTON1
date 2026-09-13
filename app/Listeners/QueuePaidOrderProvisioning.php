@@ -25,11 +25,11 @@ final class QueuePaidOrderProvisioning implements ShouldQueue
     use Queueable;
     use SerializesModels;
 
-    /** Do not enqueue the listener until the OrderPaid transaction is committed. */
-    public bool $afterCommit = true;
-
     public function __construct()
     {
+        // Queueable already defines $afterCommit; set it instead of redeclaring
+        // the property, which is incompatible with the trait's definition.
+        $this->afterCommit = true;
         $this->configureHortonQueue();
     }
 
