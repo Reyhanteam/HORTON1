@@ -9,6 +9,7 @@ use App\Models\SupportTicket;
 use App\Services\Registration\RegistrationService;
 use App\Services\Support\SupportTicketService;
 use App\Services\Telegram\BotMessageResponder;
+use App\Services\Telegram\TelegramAttachmentStorage;
 use App\Telegram\Conversations\SupportConversation;
 use ReyhanTeam\TelegramBotRouter\Conversation\ConversationManager;
 use ReyhanTeam\TelegramBotRouter\Keyboard\Keyboard;
@@ -28,6 +29,7 @@ final class SupportController
         private readonly BotMessageStore $messages,
         private readonly BotMessageResponder $responder,
         private readonly SupportTicketService $support,
+        private readonly TelegramAttachmentStorage $attachments,
         private readonly ConversationManager $conversations,
     ) {}
 
@@ -131,12 +133,23 @@ final class SupportController
     {
         $user = $this->registration->userForUpdate($update);
         $payload = $this->extractMessage($update);
+        $department = $this->support->departments()->firstWhere('id', (int) ($data['department_id'] ?? 0));
+
+        if ($department === null) {
+            throw new \InvalidArgumentException('Invalid support department selection.');
+        }
+
+        $storedAttachments = $this->attachments->store(
+            $payload['attachments'],
+            (string) $department->slug,
+        );
+
         $ticket = $this->support->createTicket(
             $user,
-            (int) ($data['department_id'] ?? 0),
+            (int) $department->id,
             (string) ($data['sensitivity'] ?? 'normal'),
             $payload['text'],
-            $payload['attachments'],
+            $storedAttachments,
         );
 
         $this->responder->respond(
@@ -179,7 +192,9 @@ final class SupportController
     private function extractMessage(TelegramUpdate $update): array
     {
         $message = $update->originalUpdate()->message ?? null;
-        if ($message === null) return ['text' => trim((string) $update->text()), 'attachments' => []];
+        if ($message === null) {
+            return ['text' => trim((string) $update->text()), 'attachments' => []];
+        }
 
         $text = $message->text ?? $message->caption ?? null;
         $attachments = [];
@@ -187,18 +202,61 @@ final class SupportController
         $photo = $message->photo ?? null;
         if ($photo !== null) {
             $sizes = is_object($photo) ? get_object_vars($photo) : (is_array($photo) ? $photo : []);
+            $sizes = array_values($sizes);
             $last = $sizes === [] ? null : end($sizes);
-            $fileId = is_object($last) ? ($last->file_id ?? null) : (is_array($last) ? ($last['file_id'] ?? null) : null);
-            if (is_string($fileId) && $fileId !== '') $attachments[] = ['type' => 'photo', 'file_id' => $fileId];
+            $fileId = $this->value($last, 'file_id');
+            if (is_string($fileId) && $fileId !== '') {
+                $attachments[] = [
+                    'type' => 'photo',
+                    'file_id' => $fileId,
+                    'width' => $this->value($last, 'width'),
+                    'height' => $this->value($last, 'height'),
+                    'file_size' => $this->value($last, 'file_size'),
+                ];
+            }
         }
 
-        foreach (['video' => 'video', 'document' => 'document'] as $property => $type) {
+        foreach ([
+            'video' => 'video',
+            'document' => 'document',
+            'audio' => 'audio',
+            'voice' => 'voice',
+            'animation' => 'animation',
+            'video_note' => 'video_note',
+        ] as $property => $type) {
             $value = $message->{$property} ?? null;
-            $fileId = is_object($value) ? ($value->file_id ?? null) : (is_array($value) ? ($value['file_id'] ?? null) : null);
-            if (is_string($fileId) && $fileId !== '') $attachments[] = ['type' => $type, 'file_id' => $fileId];
+            $fileId = $this->value($value, 'file_id');
+            if (is_string($fileId) && $fileId !== '') {
+                $attachments[] = [
+                    'type' => $type,
+                    'file_id' => $fileId,
+                    'file_name' => $this->value($value, 'file_name'),
+                    'mime_type' => $this->value($value, 'mime_type'),
+                    'file_size' => $this->value($value, 'file_size'),
+                ];
+            }
         }
 
-        return ['text' => is_string($text) ? trim($text) : null, 'attachments' => $attachments];
+        return [
+            'text' => is_string($text) ? trim($text) : null,
+            'attachments' => array_map(static fn (array $attachment): array => array_filter(
+                $attachment,
+                static fn ($value): bool => $value !== null && $value !== '',
+            ), $attachments),
+        ];
+    }
+
+    private function value(mixed $value, string $key): mixed
+    {
+        if (is_object($value)) {
+            return $value->{$key} ?? null;
+        }
+
+        if (is_array($value)) {
+            return $value[$key] ?? null;
+        }
+
+        return null;
     }
 
     private function botMessage(string $key): string
