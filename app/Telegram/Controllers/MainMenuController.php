@@ -16,6 +16,7 @@ final class MainMenuController
 {
     public const RENEW = 'menu:renew';
     public const SHOP = 'menu:shop';
+    public const LUCK_WHEEL = 'menu:luck-wheel';
     public const TEST_ACCOUNT = 'menu:test-account';
     public const WALLET = 'menu:wallet';
     public const SERVICES = 'menu:services';
@@ -78,16 +79,18 @@ final class MainMenuController
             ->callbackButton($button('menu.renew', '🔄 تمدید سرویس', self::RENEW)['text'], self::RENEW)
             ->callbackButton($button('menu.shop', '🛒 خرید اشتراک', self::SHOP)['text'], self::SHOP)
             ->row()
+            ->callbackButton($button('menu.luck_wheel', '🎡 گردونه شانس', self::LUCK_WHEEL)['text'], self::LUCK_WHEEL)
             ->callbackButton($button('menu.test_account', '🧪 اکانت تست', self::TEST_ACCOUNT)['text'], self::TEST_ACCOUNT)
+            ->row()
             ->callbackButton($button('menu.wallet', '💰 کیف پول + شارژ', self::WALLET)['text'], self::WALLET)
-            ->row()
             ->callbackButton($button('menu.services', '📦 سرویس‌های من', self::SERVICES)['text'], self::SERVICES)
+            ->row()
             ->callbackButton($button('menu.plans', '💳 تعرفه اشتراک‌ها', self::PLANS)['text'], self::PLANS)
-            ->row()
             ->callbackButton($button('menu.referral', '👥 زیرمجموعه‌گیری', self::REFERRAL)['text'], self::REFERRAL)
-            ->callbackButton($button('menu.tutorials', '🎓 آموزش', self::TUTORIALS)['text'], self::TUTORIALS)
             ->row()
+            ->callbackButton($button('menu.tutorials', '🎓 آموزش', self::TUTORIALS)['text'], self::TUTORIALS)
             ->callbackButton($button('menu.support', '🎧 پشتیبانی', self::SUPPORT)['text'], self::SUPPORT)
+            ->row()
             ->callbackButton($button('menu.representative', '🏪 پنل نمایندگی', self::REPRESENTATIVE)['text'], self::REPRESENTATIVE)
             ->toArray();
     }
