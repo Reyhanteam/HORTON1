@@ -6,6 +6,13 @@ namespace App\Jobs\Concerns;
 
 trait ConfiguresHortonQueue
 {
+    public int $tries;
+
+    public int $timeout;
+
+    /** @var array<int, int>|int */
+    public array|int $backoff;
+
     protected function configureHortonQueue(?string $queue = null): void
     {
         $config = config('queue.horton', []);
