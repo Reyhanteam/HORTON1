@@ -37,6 +37,10 @@ class DatabaseSeeder extends Seeder
             'registration.blocked' => 'دسترسی این حساب مسدود شده است.',
             'registration.not_started' => 'فرآیند ثبت‌نام شروع نشده است. لطفاً /start را ارسال کنید.',
             'registration.telegram_user_required' => 'اطلاعات کاربر تلگرام یافت نشد.',
+            'membership.restricted' => 'برای استفاده از ربات، ابتدا در کانال‌های زیر عضو شوید و سپس «بررسی عضویت» را بزنید.',
+            'membership.recheck' => '🔄 بررسی عضویت',
+            'membership.verified' => 'عضویت شما تأیید شد. اکنون می‌توانید از ربات استفاده کنید.',
+            'membership.unavailable' => 'در حال حاضر بررسی عضویت کانال‌ها انجام نشد. لطفاً چند لحظه بعد دوباره تلاش کنید.',
         ];
 
         foreach ($messages as $key => $value) {
@@ -49,6 +53,11 @@ class DatabaseSeeder extends Seeder
         BotSetting::query()->updateOrCreate(
             ['key' => 'features.phone_verification'],
             ['value' => 'true', 'type' => 'boolean', 'is_public' => false],
+        );
+
+        BotSetting::query()->updateOrCreate(
+            ['key' => 'features.channel_membership'],
+            ['value' => 'false', 'type' => 'boolean', 'is_public' => false],
         );
     }
 }
