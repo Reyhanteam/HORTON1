@@ -1,11 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Listeners;
 
 use App\Contracts\ServiceLifecycle;
 use App\Events\OrderPaid;
+use App\Jobs\Concerns\ConfiguresHortonQueue;
 use App\Jobs\ProvisionServiceJob;
-use App\Models\OrderItem;
 use App\Models\ServiceProvider;
 use App\Models\User;
 use Illuminate\Bus\Queueable;
@@ -17,20 +19,32 @@ use Illuminate\Support\Facades\DB;
 
 final class QueuePaidOrderProvisioning implements ShouldQueue
 {
-    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    use ConfiguresHortonQueue;
+    use Dispatchable;
+    use InteractsWithQueue;
+    use Queueable;
+    use SerializesModels;
 
-    public int $tries = 3;
-    public int $timeout = 120;
+    /** Do not enqueue the listener until the OrderPaid transaction is committed. */
+    public bool $afterCommit = true;
 
-    public function backoff(): array
+    public function __construct()
     {
-        return [10, 30, 90];
+        $this->configureHortonQueue();
+    }
+
+    /** @return array<int, object> */
+    public function middleware(): array
+    {
+        return $this->hortonQueueMiddleware();
     }
 
     public function handle(ServiceLifecycle $services, OrderPaid $event): void
     {
         $order = $event->order->fresh(['items']);
-        if (! $order || $order->status->value !== 'paid') return;
+        if (! $order || $order->status->value !== 'paid') {
+            return;
+        }
 
         // Payment must not fail merely because provisioning is not configured yet.
         // A later provisioning workflow can pick the paid order up once a provider/account exists.
@@ -38,7 +52,9 @@ final class QueuePaidOrderProvisioning implements ShouldQueue
             ->where('status', 'active')
             ->whereHas('accounts', fn ($query) => $query->where('status', 'active'))
             ->exists();
-        if (! $providerReady) return;
+        if (! $providerReady) {
+            return;
+        }
 
         $user = User::query()->findOrFail($order->user_id);
         foreach ($order->items as $item) {
@@ -47,7 +63,9 @@ final class QueuePaidOrderProvisioning implements ShouldQueue
                     ->where('order_item_id', $item->id)
                     ->whereJsonContains('metadata', ['order_item_index' => $index])
                     ->exists();
-                if ($exists) continue;
+                if ($exists) {
+                    continue;
+                }
 
                 $service = $services->create($user, (int) $item->plan_id, null, [
                     'order_id' => $order->id,
