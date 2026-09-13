@@ -46,6 +46,14 @@ final class DatabaseChannelMembershipService implements ChannelMembershipService
             try {
                 $response = BOT::getChatMember($channel->chat_id, (int) $userId);
                 $status = $this->status($response);
+                if ($status === null) {
+                    Log::warning('Telegram channel membership response was invalid.', [
+                        'channel_id' => $channel->chat_id,
+                        'telegram_user_id' => $userId,
+                    ]);
+                    return new ChannelMembershipResult(true, false, false, true, $channels->all());
+                }
+
                 if (!in_array($status, self::MEMBER_STATUSES, true)) {
                     $missing[] = $channel;
                 }
