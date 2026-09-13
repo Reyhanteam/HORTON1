@@ -28,7 +28,7 @@ final class SendTelegramNotificationJob implements ShouldQueue, ShouldBeUnique
     public function __construct(public readonly int $notificationId)
     {
         $this->afterCommit = true;
-        $this->configureHortonQueue('notifications');
+        $this->configureHortonQueue((string) config('queue.horton.notifications_queue', config('queue.horton.queue', 'default')));
         $this->uniqueFor = $this->hortonQueueUniqueFor();
     }
 
@@ -54,9 +54,7 @@ final class SendTelegramNotificationJob implements ShouldQueue, ShouldBeUnique
             ['status' => 'pending', 'attempts' => 0],
         );
 
-        if ($delivery->sent_at !== null) {
-            return;
-        }
+        if ($delivery->sent_at !== null) return;
 
         $telegramAccount = $notification->user?->telegramAccount;
         if (! $telegramAccount || ! $telegramAccount->is_active) {
