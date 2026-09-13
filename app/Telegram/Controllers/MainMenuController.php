@@ -6,9 +6,9 @@ namespace App\Telegram\Controllers;
 
 use App\Contracts\BotMessageStore;
 use App\Contracts\WalletService;
+use App\Models\User;
 use App\Services\Registration\RegistrationService;
 use App\Services\Telegram\BotMessageResponder;
-use App\Models\User;
 use LogicException;
 use ReyhanTeam\TelegramBotRouter\Keyboard\Keyboard;
 use ReyhanTeam\TelegramBotRouter\TelegramUpdate;
@@ -17,7 +17,6 @@ final class MainMenuController
 {
     public const RENEW = 'menu:renew';
     public const SHOP = 'menu:shop';
-    public const LUCK_WHEEL = 'menu:luck-wheel';
     public const TEST_ACCOUNT = 'menu:test-account';
     public const WALLET = 'menu:wallet';
     public const SERVICES = 'menu:services';
@@ -75,18 +74,16 @@ final class MainMenuController
             ->callbackButton($this->button('menu.renew'), self::RENEW)
             ->callbackButton($this->button('menu.shop'), self::SHOP)
             ->row()
-            ->callbackButton($this->button('menu.luck_wheel'), self::LUCK_WHEEL)
             ->callbackButton($this->button('menu.test_account'), self::TEST_ACCOUNT)
-            ->row()
             ->callbackButton($this->button('menu.wallet'), self::WALLET)
+            ->row()
             ->callbackButton($this->button('menu.services'), self::SERVICES)
-            ->row()
             ->callbackButton($this->button('menu.plans'), self::PLANS)
+            ->row()
             ->callbackButton($this->button('menu.referral'), self::REFERRAL)
-            ->row()
             ->callbackButton($this->button('menu.tutorials'), self::TUTORIALS)
-            ->callbackButton($this->button('menu.support'), self::SUPPORT)
             ->row()
+            ->callbackButton($this->button('menu.support'), self::SUPPORT)
             ->callbackButton($this->button('menu.representative'), self::REPRESENTATIVE)
             ->toArray();
     }
