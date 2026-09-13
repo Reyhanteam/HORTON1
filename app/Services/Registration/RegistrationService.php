@@ -162,7 +162,12 @@ final class RegistrationService
 
     public function message(string $key): string
     {
-        return $this->messages->get($key, default: $key) ?? $key;
+        return $this->messages->get($key, default: $key, type: 'message') ?? $key;
+    }
+
+    public function button(string $key): string
+    {
+        return $this->messages->get($key, default: $key, type: 'button') ?? $key;
     }
 
     public function render(string $key, array $replace = []): string
