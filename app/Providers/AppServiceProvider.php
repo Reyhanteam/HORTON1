@@ -29,8 +29,6 @@ use App\Contracts\UserAccessChecker;
 use App\Contracts\UserLifecycle;
 use App\Contracts\WalletLedger;
 use App\Contracts\WalletService;
-use App\Events\UserRegistered;
-use App\Listeners\SendRegistrationNotification;
 use App\Models\CashbackTransaction;
 use App\Models\DiscountUsage;
 use App\Models\GiftCodeRedemption;
@@ -69,7 +67,6 @@ use App\Services\Telegram\DatabaseBotMessageStore;
 use App\Services\Telegram\DatabaseChannelMembershipService;
 use App\Services\Wallet\DatabaseWalletLedger;
 use App\Services\Wallet\DatabaseWalletService;
-use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -123,7 +120,5 @@ class AppServiceProvider extends ServiceProvider
         ] as $model) {
             $model::observe($observer);
         }
-
-        Event::listen(UserRegistered::class, SendRegistrationNotification::class);
     }
 }
