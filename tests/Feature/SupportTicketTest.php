@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
-use App\Contracts\NotificationDispatcher;
+use App\Models\Notification;
 use App\Models\SupportContent;
 use App\Models\SupportDepartment;
 use App\Models\SupportTicket;
 use App\Models\User;
 use App\Services\Support\SupportTicketService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Mockery;
 use Tests\TestCase;
 
 final class SupportTicketTest extends TestCase
@@ -27,8 +26,7 @@ final class SupportTicketTest extends TestCase
             'is_active' => true,
         ]);
 
-        $service = app(SupportTicketService::class);
-        $ticket = $service->createTicket($user, $department->id, 'high', 'مشکل من', [
+        $ticket = app(SupportTicketService::class)->createTicket($user, $department->id, 'high', 'مشکل من', [
             ['type' => 'photo', 'file_id' => 'photo-123'],
             ['type' => 'document', 'file_id' => 'doc-123'],
         ]);
@@ -61,7 +59,7 @@ final class SupportTicketTest extends TestCase
         $this->assertSame('سوال تست', $faq->first()->title);
     }
 
-    public function test_admin_reply_moves_ticket_to_answered_and_dispatches_notification(): void
+    public function test_admin_reply_moves_ticket_to_answered_and_creates_notification(): void
     {
         $user = User::factory()->create();
         $department = SupportDepartment::query()->create([
@@ -79,13 +77,13 @@ final class SupportTicketTest extends TestCase
             'sensitivity' => 'normal',
         ]);
 
-        $dispatcher = Mockery::mock(NotificationDispatcher::class);
-        $dispatcher->shouldReceive('dispatch')->once();
-        $this->app->instance(NotificationDispatcher::class, $dispatcher);
-
         $reply = app(SupportTicketService::class)->addAdminReply($ticket, 1, 'پاسخ پشتیبانی', []);
 
         $this->assertSame('admin', $reply->sender_type);
         $this->assertSame('answered', $ticket->refresh()->status);
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $user->id,
+            'type' => 'support.ticket.replied',
+        ]);
     }
 }
