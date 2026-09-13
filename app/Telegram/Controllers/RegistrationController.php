@@ -19,6 +19,7 @@ final class RegistrationController
         private readonly RegistrationService $registration,
         private readonly ConversationManager $conversations,
         private readonly BotMessageResponder $messages,
+        private readonly MainMenuController $mainMenu,
     ) {}
 
     public function start(TelegramUpdate $update): mixed
@@ -26,14 +27,7 @@ final class RegistrationController
         $user = $this->registration->begin($update);
 
         if ($user->isActive()) {
-            // /start always establishes a fresh bot message. This prevents
-            // future edits from targeting a message the user deleted.
-            return $this->messages->sendNew(
-                $update->chatId(),
-                $this->registration->render('main.menu', [
-                    '{name}' => $user->name ?? '',
-                ]),
-            );
+            return $this->mainMenu->show($update);
         }
 
         $this->conversations->start(
@@ -43,7 +37,6 @@ final class RegistrationController
             (int) config('telegram-bot-router.conversation.ttl', 3600),
         );
 
-        // /start always sends a fresh message, even for an unregistered user.
         return $this->messages->sendNew(
             $update->chatId(),
             $this->registration->render('registration.rules', ['{name}' => $user->name ?? '']),
@@ -73,15 +66,7 @@ final class RegistrationController
         $result = $this->registration->accept($user);
 
         if ($result['done'] === true) {
-            $registeredUser = $result['user'];
-
-            $this->send(
-                $update,
-                $this->registration->render('registration.success', [
-                    '{name}' => $registeredUser->name ?? '',
-                ]),
-            );
-
+            $this->mainMenu->show($update);
             return ['done' => true, 'data' => ['accepted' => true, 'phone_verified' => false]];
         }
 
@@ -114,11 +99,7 @@ final class RegistrationController
             throw new InvalidArgumentException((string) $message, 0, $exception);
         }
 
-        $this->messages->sendNew(
-            $update->chatId(),
-            $this->registration->render('registration.success', ['{name}' => $user->name ?? '']),
-            Keyboard::reply()->remove()->toArray(),
-        );
+        $this->mainMenu->show($update);
 
         return ['done' => true, 'data' => ['accepted' => true, 'phone_verified' => true]];
     }
