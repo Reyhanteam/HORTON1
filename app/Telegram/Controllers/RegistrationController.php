@@ -54,7 +54,12 @@ final class RegistrationController
         // a database reset). Reconcile the account before processing the step
         // instead of failing with registration.not_started.
         $user = $this->registration->begin($update);
-        $value = $input->required()->value('');
+
+        // This step is a callback-query step. Do not read ConversationInput::value()
+        // here: Telegram contact messages have no message.text field. Reading the
+        // generic conversation input for such an update would trigger an undefined
+        // stdClass::$text warning inside the router's TelegramUpdate::text().
+        $value = $update->callbackQueryData();
 
         if ($value === RegistrationService::DECLINE) {
             $this->send($update, $this->registration->message('registration.cancelled'));
@@ -63,7 +68,7 @@ final class RegistrationController
 
         if ($value !== RegistrationService::ACCEPT) {
             $this->send($update, $this->registration->message('registration.invalid_acceptance'));
-            throw new InvalidArgumentException('Invalid registration acceptance value.');
+            throw new InvalidArgumentException('Invalid registration acceptance callback.');
         }
 
         $result = $this->registration->accept($user);
