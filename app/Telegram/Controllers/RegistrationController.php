@@ -50,7 +50,10 @@ final class RegistrationController
 
     public function acceptance(TelegramUpdate $update, mixed $input): array
     {
-        $user = $this->registration->userForUpdate($update);
+        // A conversation may outlive a TelegramAccount row (for example after
+        // a database reset). Reconcile the account before processing the step
+        // instead of failing with registration.not_started.
+        $user = $this->registration->begin($update);
         $value = $input->required()->value('');
 
         if ($value === RegistrationService::DECLINE) {
@@ -88,7 +91,9 @@ final class RegistrationController
 
     public function phone(TelegramUpdate $update): array
     {
-        $user = $this->registration->userForUpdate($update);
+        // Keep registration idempotent so a stale conversation does not fail
+        // merely because its TelegramAccount was removed or recreated.
+        $user = $this->registration->begin($update);
 
         try {
             $user = $this->registration->verifyPhone($user, $update);
