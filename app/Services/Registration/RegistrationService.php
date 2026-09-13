@@ -128,7 +128,7 @@ final class RegistrationService
         $phone = $this->validatedContactPhone($update);
 
         try {
-            return $this->db->transaction(function () use ($user, $phone): User {
+            return $this->db->transaction(function () use ($user, $phone, $update): User {
                 $existing = User::query()
                     ->where('phone', $phone)
                     ->where($user->getKeyName(), '!=', $user->getKey())
@@ -145,6 +145,21 @@ final class RegistrationService
                 $user->forceFill([
                     'phone' => $phone,
                     'phone_verified_at' => now(),
+                ])->save();
+
+                $account = TelegramAccount::query()
+                    ->where('user_id', $user->getKey())
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($account === null) {
+                    throw ValidationException::withMessages([
+                        'registration' => $this->message('registration.not_started'),
+                    ]);
+                }
+
+                $account->forceFill([
+                    'phone' => $phone,
                 ])->save();
 
                 return $this->lifecycle->activate($user->refresh());
