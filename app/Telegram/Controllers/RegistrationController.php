@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace App\Telegram\Controllers;
 
 use App\Services\Registration\RegistrationService;
+use App\Services\Telegram\BotMessageResponder;
 use App\Telegram\Conversations\RegistrationConversation;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use ReyhanTeam\TelegramBotRouter\Conversation\ConversationManager;
-use ReyhanTeam\TelegramBotRouter\Facades\BOT;
 use ReyhanTeam\TelegramBotRouter\Keyboard\Keyboard;
 use ReyhanTeam\TelegramBotRouter\TelegramUpdate;
 
@@ -18,6 +18,7 @@ final class RegistrationController
     public function __construct(
         private readonly RegistrationService $registration,
         private readonly ConversationManager $conversations,
+        private readonly BotMessageResponder $messages,
     ) {}
 
     public function start(TelegramUpdate $update): mixed
@@ -80,8 +81,10 @@ final class RegistrationController
             return ['done' => true, 'data' => ['accepted' => true, 'phone_verified' => false]];
         }
 
-        $this->send(
-            $update,
+        // Telegram cannot turn an existing inline message into a reply keyboard.
+        // This is an explicit new-message exception required for request_contact.
+        $this->messages->sendNew(
+            $update->chatId(),
             $this->registration->message('registration.phone_prompt'),
             [
                 'keyboard' => [[[
@@ -109,8 +112,9 @@ final class RegistrationController
             throw new InvalidArgumentException((string) $message, 0, $exception);
         }
 
-        $this->send(
-            $update,
+        // Removing a reply keyboard is also an explicit new-message operation.
+        $this->messages->sendNew(
+            $update->chatId(),
             $this->registration->render('registration.success', ['{name}' => $user->name ?? '']),
             Keyboard::reply()->remove()->toArray(),
         );
@@ -120,6 +124,6 @@ final class RegistrationController
 
     private function send(TelegramUpdate $update, string $text, ?array $replyMarkup = null): mixed
     {
-        return BOT::sendMessage($update->chatId(), $text, replyMarkup: $replyMarkup);
+        return $this->messages->respond($update, $text, $replyMarkup);
     }
 }
