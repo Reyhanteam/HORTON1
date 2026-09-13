@@ -41,9 +41,9 @@ final class RegistrationController
             $update,
             $this->registration->render('registration.rules', ['{name}' => $user->name ?? '']),
             Keyboard::inline()
-                ->callbackButton($this->registration->message('registration.accept_button'), RegistrationService::ACCEPT)
+                ->callbackButton($this->registration->button('registration.accept_button'), RegistrationService::ACCEPT)
                 ->row()
-                ->callbackButton($this->registration->message('registration.decline_button'), RegistrationService::DECLINE)
+                ->callbackButton($this->registration->button('registration.decline_button'), RegistrationService::DECLINE)
                 ->toArray(),
         );
     }
@@ -85,7 +85,7 @@ final class RegistrationController
             $this->registration->message('registration.phone_prompt'),
             [
                 'keyboard' => [[[
-                    'text' => $this->registration->message('registration.share_phone_button'),
+                    'text' => $this->registration->button('registration.share_phone_button'),
                     'request_contact' => true,
                 ]]],
                 'resize_keyboard' => true,
@@ -120,15 +120,6 @@ final class RegistrationController
 
     private function send(TelegramUpdate $update, string $text, ?array $replyMarkup = null): mixed
     {
-        $payload = [
-            'chat_id' => $update->chatId(),
-            'text' => $text,
-        ];
-
-        if ($replyMarkup !== null) {
-            $payload['reply_markup'] = $replyMarkup;
-        }
-
-        return BOT::sendMessage($update->chatId(), $text, replyMarkup:$replyMarkup);
+        return BOT::sendMessage($update->chatId(), $text, replyMarkup: $replyMarkup);
     }
 }
