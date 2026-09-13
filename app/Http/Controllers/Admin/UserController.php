@@ -15,7 +15,6 @@ use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 final class UserController
@@ -23,7 +22,7 @@ final class UserController
     public function index(Request $request): JsonResponse
     {
         $users = User::query()
-            ->with(['telegramAccounts'])
+            ->with('telegramAccounts')
             ->when($request->filled('q'), function ($query) use ($request): void {
                 $term = trim((string) $request->input('q'));
                 $query->where(function ($q) use ($term): void {
@@ -44,21 +43,14 @@ final class UserController
 
     public function show(User $user): JsonResponse
     {
-        $wallets = Wallet::query()->where('user_id', $user->id)->get();
-        $orders = Order::query()->where('user_id', $user->id)->latest('id')->limit(20)->get();
-        $payments = Payment::query()->where('user_id', $user->id)->latest('id')->limit(20)->get();
-        $services = Service::query()->where('user_id', $user->id)->latest('id')->limit(20)->get();
-        $tickets = SupportTicket::query()->where('user_id', $user->id)->latest('id')->limit(20)->get();
-        $transactions = WalletTransaction::query()->where('user_id', $user->id)->latest('id')->limit(50)->get();
-
         return response()->json([
             'user' => $user->load(['telegramAccounts', 'profile']),
-            'wallets' => $wallets,
-            'orders' => $orders,
-            'payments' => $payments,
-            'services' => $services,
-            'support_tickets' => $tickets,
-            'wallet_transactions' => $transactions,
+            'wallets' => Wallet::query()->where('user_id', $user->id)->get(),
+            'orders' => Order::query()->where('user_id', $user->id)->latest('id')->limit(20)->get(),
+            'payments' => Payment::query()->where('user_id', $user->id)->latest('id')->limit(20)->get(),
+            'services' => Service::query()->where('user_id', $user->id)->latest('id')->limit(20)->get(),
+            'support_tickets' => SupportTicket::query()->where('user_id', $user->id)->latest('id')->limit(20)->get(),
+            'wallet_transactions' => WalletTransaction::query()->where('user_id', $user->id)->latest('id')->limit(50)->get(),
         ]);
     }
 
@@ -88,8 +80,8 @@ final class UserController
         AuditLog::query()->create([
             'admin_user_id' => auth('admin')->id(),
             'action' => $action,
-            'auditable_type' => User::class,
-            'auditable_id' => $user->id,
+            'subject_type' => User::class,
+            'subject_id' => $user->id,
             'old_values' => $oldValues,
             'new_values' => $newValues,
             'ip_address' => request()->ip(),
