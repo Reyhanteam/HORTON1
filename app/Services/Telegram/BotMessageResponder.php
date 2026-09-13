@@ -13,6 +13,11 @@ final class BotMessageResponder
     public function respond(TelegramUpdate $update, string $text, ?array $replyMarkup = null): mixed
     {
         $chatId = $update->chatId();
+
+        if ($this->isStart($update)) {
+            return $this->sendNew($chatId, $text, $replyMarkup);
+        }
+
         $messageId = $this->messageIdForUpdate($update);
 
         if ($messageId === null && $chatId !== null) {
@@ -57,15 +62,25 @@ final class BotMessageResponder
 
     private function messageIdForUpdate(TelegramUpdate $update): ?int
     {
-        // messageId() is the user's message id for normal text/contact updates.
-        // It is the bot message id only for callback_query updates. Never edit
-        // the user's incoming message by mistake.
         $callbackMessageId = data_get(
             $update->originalUpdate(),
             'callback_query.message.message_id',
         );
 
         return $callbackMessageId !== null ? (int) $callbackMessageId : null;
+    }
+
+    private function isStart(TelegramUpdate $update): bool
+    {
+        $text = $update->message?->text;
+
+        if (!is_string($text)) {
+            return false;
+        }
+
+        $command = trim($text);
+
+        return $command === '/start' || str_starts_with($command, '/start@');
     }
 
     private function remember(int|string $chatId, int $messageId): void
