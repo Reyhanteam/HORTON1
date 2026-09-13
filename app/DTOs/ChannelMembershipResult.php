@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace App\DTOs;
 
-use App\Models\RequiredTelegramChannel;
+use App\Models\BotChannel;
 
 final readonly class ChannelMembershipResult
 {
-    /** @param array<int, RequiredTelegramChannel> $missingChannels */
+    /** @param array<int, BotChannel> $missingChannels */
     public function __construct(
         public bool $enabled,
         public bool $checked,
