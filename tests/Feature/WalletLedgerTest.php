@@ -59,8 +59,9 @@ class WalletLedgerTest extends TestCase
         $user = User::factory()->create(); $wallet = $this->app->make(WalletService::class); $ledger = $this->app->make(WalletLedger::class);
         $wallet->credit($user, new WalletMutationData(100000, 'deposit', idempotencyKey: 'integrity-1')); $wallet->debit($user, new WalletMutationData(10000, 'purchase', idempotencyKey: 'integrity-2'));
         $valid = $ledger->reconcile($user); $this->assertTrue($valid->consistent); $this->assertSame(90000, $valid->storedBalance); $this->assertSame(90000, $valid->calculatedBalance); $this->assertSame(2, $valid->transactionCount);
-        DB::table('wallet_transactions')->where('id', 2)->update(['amount' => 99999]);
-        $invalid = $ledger->reconcile($user); $this->assertFalse($invalid->consistent); $this->assertSame(2, $invalid->firstInvalidTransactionId);
+        $transaction = DB::table('wallet_transactions')->where('wallet_id', $user->wallets()->first()->id)->orderByDesc('id')->first();
+        DB::table('wallet_transactions')->where('id', $transaction->id)->update(['ledger_hash' => str_repeat('0', 64)]);
+        $invalid = $ledger->reconcile($user); $this->assertFalse($invalid->consistent); $this->assertSame($transaction->id, $invalid->firstInvalidTransactionId);
     }
 
     public function test_ledger_transactions_are_readable_in_reverse_chronological_order(): void
