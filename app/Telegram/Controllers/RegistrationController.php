@@ -26,9 +26,14 @@ final class RegistrationController
         $user = $this->registration->begin($update);
 
         if ($user->isActive()) {
-            return $this->send($update, $this->registration->render('registration.already_active', [
-                '{name}' => $user->name ?? '',
-            ]));
+            // /start always establishes a fresh bot message. This prevents
+            // future edits from targeting a message the user deleted.
+            return $this->messages->sendNew(
+                $update->chatId(),
+                $this->registration->render('main.menu', [
+                    '{name}' => $user->name ?? '',
+                ]),
+            );
         }
 
         $this->conversations->start(
@@ -38,8 +43,9 @@ final class RegistrationController
             (int) config('telegram-bot-router.conversation.ttl', 3600),
         );
 
-        return $this->send(
-            $update,
+        // /start always sends a fresh message, even for an unregistered user.
+        return $this->messages->sendNew(
+            $update->chatId(),
             $this->registration->render('registration.rules', ['{name}' => $user->name ?? '']),
             Keyboard::inline()
                 ->callbackButton($this->registration->button('registration.accept_button'), RegistrationService::ACCEPT)
