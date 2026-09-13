@@ -30,6 +30,7 @@ Route::onCallback(MainMenuController::PLANS, [MainMenuController::class, 'action
 Route::onCallback(MainMenuController::REFERRAL, [MainMenuController::class, 'action']);
 Route::onCallback(MainMenuController::TUTORIALS, [MainMenuController::class, 'action']);
 Route::onCallback(MainMenuController::SUPPORT, [MainMenuController::class, 'action']);
+Route::onCallback(MainMenuController::REPRESENTATIVE, [MainMenuController::class, 'action']);
 
 Route::conversation(RegistrationConversation::name())
     ->step([RegistrationController::class, 'acceptance'])
